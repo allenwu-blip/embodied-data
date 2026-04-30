@@ -109,17 +109,46 @@ deferred to v0.2. Posted with audit-trail commits (one per issue):
 | AgiBot-World#149 | issuecomment-4356517466 | `7575672` |
 | huggingface/lerobot#2158 | issuecomment-4356518120 | `2a602d7` |
 
-### Track 2 — B: v0.1.1 Alpha fixture (in flight)
+### Track 2 ✅ — B: v0.1.1 patches landed (no release; awaiting [PUBLISH])
 
-- B.1 ✅ HF auth verified (`hf auth whoami` → user=allenwu06).
-- B.2 in progress. Initial probe of `agibot-world/AgiBotWorld-Alpha` reveals a
-  **fundamentally different layout** from sim DigitalWorld: data is bundled in
-  giant tars (smallest single-episode obs tar = 9.48 GB, proprio_stats single
-  bundle = 48 GB, sample_dataset.tar = 7.1 GB at root). No per-episode `h5` is
-  separately downloadable. Allen's degraded path (only-h5, skip video) cannot
-  apply directly because Alpha h5s are tar-bundled. Tech Lead dispatched
-  B.alpha-hunter subagent with a **ladder strategy** + 1.5 GB temporary streaming
-  budget (final on-disk ≤ 500 MB after extracting one h5 + cleanup): try README
-  variants → stream-extract one h5 from proprio_stats tar → smallest obs tar →
-  metadata-only fallback. 20-min timebox.
-- B.3 / B.4 / B.5 blocked on B.2 result.
+- **B.1 HF auth** ✅ — `user=allenwu06`. Alpha gating not approved for this
+  user; Beta gating is approved. Pivoted to Beta (per-upstream-README schema is
+  identical).
+- **B.2 fixture acquired** ✅ — `data/agibot_beta_sample/675/936938/proprio_stats.h5`
+  (1.17 MB) + `task_info_675.json` (417 KB). Beta proprio bundled in 784 MB tar
+  (vs Alpha's 48 GB). Used `tarfile` streaming to extract just one h5 in <2 MB
+  bandwidth. No source tar persisted.
+- **B.3 / B.4 v0.1.0 vs real Beta** ✅ → `docs/v0.1.1-findings.md` (510 lines,
+  15 triaged bugs across 5 BLOCKER + 8 HIGH + 2 LOW). Top deltas vs sim:
+  filename `proprio_stats.h5` (no second `s`); `state/joint/position` shape
+  `(N, 14)` not `(N, 34)` and zero attrs (vs sim's 34 joint names); `/timestamp`
+  is `int64` ns Unix epoch not `float32` seconds; extra state subgroups
+  `head` / `waist`; sparse `*/index` companions on most action subgroups;
+  `task_info_<task>.json` is a list of episode dicts.
+- **B.5 v0.1.1 patches** ✅ — 9 patches (8 from spec + 1 Tech Lead surfaced
+  during verify) committed independently for audit trail:
+  - Patch 1 `f7faeeb` — filename glob `proprio_stat[se]*.h5` accepts both names
+    across 8 call sites; new `_agibot_paths.py` helper.
+  - Patch 2 `45d52a5` — convert refuses real-robot input cleanly when
+    `joint_dim != 34` or `attrs.name` missing.
+  - Patch 3 `b7a12ae` — convert handles Beta `task_info_<task>.json` list shape.
+  - Patch 4 `005e777` — preview reports actual joint dim, not always 22.
+  - Patch 5 `c707ba1` — preview reads `robot_type` from h5 attrs (not hardcoded "a2d").
+  - Patch 6 `453d770` — preview handles task_info list shape too (no more silent "(unknown)").
+  - Patch 7 `4ccc0c3` — convert error path catches `KeyError` / `ValueError`,
+    no more raw Rich tracebacks.
+  - Patch 8 `537da4c` — `inspect` shows attrs per group/dataset (cheap diagnostic).
+  - Patch 9 `e1c72f5` — batch `_discover_episodes` refuses Beta loudly instead
+    of silently returning zero episodes (Tech Lead caught: B.fixer's
+    `_assert_digitalworld_sim` worker concern was a symptom; root cause was
+    upstream discovery never reaching the worker).
+- **CHANGELOG ## [Unreleased]** staged (`2877d51`) listing the 7 user-visible
+  v0.1.1 fixes + known limitations. **Version stays at 0.1.0**; bump + tag +
+  twine upload all gated on Allen [PUBLISH].
+- **Test count**: 50 → 64 (+14 v0.1.1 integration tests against the Beta
+  fixture, all `@needs_beta` skipped on CI without the sample).
+- **Explicitly v0.2** (untouched): bugs #3 (real Beta forward conversion),
+  #5 (int64 ns timestamp arithmetic), #9 (head/waist/index mapping), #10
+  (variable-length `*/index` companions), #11 (validate strict-mode for
+  missing videos), #13 (error suggestion text differentiation), #15 (sim
+  60Hz vs 30Hz doc inconsistency).
