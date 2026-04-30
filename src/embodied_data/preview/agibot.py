@@ -57,8 +57,13 @@ def _read_task_name(episode_dir: Path) -> str | None:
     return str(name) if name else None
 
 
-def _read_h5_dims(h5_path: Path) -> tuple[int, int, int, str]:
-    """Return (frames, raw_state_dim, action_dim, robot_type) from proprio_states.h5."""
+def _read_h5_dims(h5_path: Path) -> tuple[int, int, int, str, bool]:
+    """Return (frames, raw_state_dim, action_dim, robot_type, can_subselect).
+
+    ``can_subselect`` is True only when this looks like a DigitalWorld sim
+    capture (raw_state_dim == 34 *and* state/joint.attrs['name'] is present).
+    Beta returns False so the preview reports the raw shape honestly.
+    """
     with h5py.File(h5_path, "r") as f:
         if "state/joint/position" not in f:
             raise ValueError("h5 missing 'state/joint/position'")
@@ -78,7 +83,11 @@ def _read_h5_dims(h5_path: Path) -> tuple[int, int, int, str]:
             names = robot_attrs.attrs["name"]
             if hasattr(names, "__len__") and len(names) > 0:
                 robot_type = str(names[0]).lower()
-    return frames, raw_state_dim, action_dim, robot_type
+
+        joint_grp = f.get("state/joint")
+        attrs_name = joint_grp.attrs.get("name") if joint_grp is not None else None
+        can_subselect = raw_state_dim == 34 and attrs_name is not None
+    return frames, raw_state_dim, action_dim, robot_type, can_subselect
 
 
 def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
@@ -94,8 +103,9 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
 
     frames = raw_state_dim = action_dim = 0
     robot_type = "a2d"
+    can_subselect = False
     if h5_present:
-        frames, raw_state_dim, action_dim, robot_type = _read_h5_dims(h5_path)
+        frames, raw_state_dim, action_dim, robot_type, can_subselect = _read_h5_dims(h5_path)
 
     fps: int | None = None
     video_frames: int | None = None
@@ -114,9 +124,14 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
 
     task_name = _read_task_name(path) or "(unknown)"
 
-    state_dim_text = (
-        f"{AGIBOT_KEPT_JOINTS} (raw {raw_state_dim})" if raw_state_dim else str(AGIBOT_KEPT_JOINTS)
-    )
+    if not raw_state_dim:
+        state_dim_text = str(AGIBOT_KEPT_JOINTS)
+    elif can_subselect:
+        state_dim_text = f"{AGIBOT_KEPT_JOINTS} (subselect from {raw_state_dim}, sim DigitalWorld)"
+    else:
+        state_dim_text = (
+            f"{raw_state_dim} (RAW; v0.1 cannot subselect — looks like Beta/Alpha real data)"
+        )
 
     # AgiBot meta_info is one episode per directory. We never truncate.
     header = ""
