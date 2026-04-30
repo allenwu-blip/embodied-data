@@ -45,16 +45,44 @@ def _read_first_mp4_fps(video_dir: Path) -> tuple[int | None, int | None]:
     return None, None
 
 
-def _read_task_name(episode_dir: Path) -> str | None:
+def _read_task_info(episode_dir: Path) -> tuple[str | None, int]:
+    """Resolve (task_name, total_episodes) from a sim or Beta task_info JSON.
+
+    Sim DigitalWorld writes a single dict at ``<episode_dir>/task_info.json``
+    (total_episodes=1). Beta writes a list of per-episode dicts; we pick the
+    entry whose ``episode_id`` matches the parent dir name (when integer) and
+    fall back to entry [0]. ``total_episodes`` reflects the number of dicts in
+    the list — the caller can surface ``(N total episodes)`` next to the name
+    so the user knows the file is shared across the task.
+    """
     task_path = episode_dir / "task_info.json"
     if not task_path.is_file():
-        return None
+        return None, 1
     try:
         obj = json.loads(task_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return None
-    name = obj.get("task_name")
-    return str(name) if name else None
+        return None, 1
+    if isinstance(obj, list):
+        if not obj:
+            return None, 0
+        try:
+            target = int(episode_dir.name)
+        except ValueError:
+            target = None
+        if target is not None:
+            for entry in obj:
+                if isinstance(entry, dict) and entry.get("episode_id") == target:
+                    name = entry.get("task_name")
+                    return (str(name) if name else None), len(obj)
+        first = obj[0]
+        if isinstance(first, dict):
+            name = first.get("task_name")
+            return (str(name) if name else None), len(obj)
+        return None, len(obj)
+    if isinstance(obj, dict):
+        name = obj.get("task_name")
+        return (str(name) if name else None), 1
+    return None, 1
 
 
 def _read_h5_dims(h5_path: Path) -> tuple[int, int, int, str, bool]:
@@ -130,7 +158,8 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
         fps = 30
     duration_s = frames / fps if fps else 0.0
 
-    task_name = _read_task_name(path) or "(unknown)"
+    task_name, total_episodes = _read_task_info(path)
+    task_name = task_name or "(unknown)"
 
     if not raw_state_dim:
         state_dim_text = str(AGIBOT_KEPT_JOINTS)
@@ -154,6 +183,13 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
         ("State dim", state_dim_text),
         ("Action dim", str(action_dim) if action_dim else "?"),
         ("Cameras", ", ".join(cameras) if cameras else "(none)"),
-        ("Tasks", f'1: "{task_name}"'),
+        (
+            "Tasks",
+            (
+                f'1: "{task_name}" ({total_episodes} total episodes)'
+                if total_episodes > 1
+                else f'1: "{task_name}"'
+            ),
+        ),
     ]
     return stats, header
