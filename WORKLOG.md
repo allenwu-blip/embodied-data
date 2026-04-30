@@ -89,3 +89,37 @@ PASSED (wheel + sdist)
 - Cross-embodiment action retargeting (when third-party `lerobot-v3 → AgiBot` users actually appear)
 - 2 remaining validator hardening items deferred from C's findings (full-corpus alignment, image-mode datasets)
 - Generic `lerobot-v2 → lerobot-v3` upgrade (would address #2446 partially)
+
+---
+
+## Sprint 3 — 2026-04-30 (autonomous 6h sprint, 3 tracks)
+
+### Track 1 ✅ — A.1 finalized: 4 in-scope upstream comments posted
+
+After v0.1.0 GA shipped (PyPI + GitHub Release public), Allen approved second-round
+post-v0.1.0 rewrites that reference `pip install embodied-data` + the release URL.
+#124 was fully rewritten (stale "single-episode v0.0.2 / next sprint" wording
+replaced with accurate v0.1.0 batch capability description). #2689 ALOHA stays
+deferred to v0.2. Posted with audit-trail commits (one per issue):
+
+| Issue | Comment URL | Commit |
+| --- | --- | --- |
+| AgiBot-World#18 | issuecomment-4356514656 | `c936f95` |
+| AgiBot-World#124 | issuecomment-4356516845 | `9a244af` |
+| AgiBot-World#149 | issuecomment-4356517466 | `7575672` |
+| huggingface/lerobot#2158 | issuecomment-4356518120 | `2a602d7` |
+
+### Track 2 — B: v0.1.1 Alpha fixture (in flight)
+
+- B.1 ✅ HF auth verified (`hf auth whoami` → user=allenwu06).
+- B.2 in progress. Initial probe of `agibot-world/AgiBotWorld-Alpha` reveals a
+  **fundamentally different layout** from sim DigitalWorld: data is bundled in
+  giant tars (smallest single-episode obs tar = 9.48 GB, proprio_stats single
+  bundle = 48 GB, sample_dataset.tar = 7.1 GB at root). No per-episode `h5` is
+  separately downloadable. Allen's degraded path (only-h5, skip video) cannot
+  apply directly because Alpha h5s are tar-bundled. Tech Lead dispatched
+  B.alpha-hunter subagent with a **ladder strategy** + 1.5 GB temporary streaming
+  budget (final on-disk ≤ 500 MB after extracting one h5 + cleanup): try README
+  variants → stream-extract one h5 from proprio_stats tar → smallest obs tar →
+  metadata-only fallback. 20-min timebox.
+- B.3 / B.4 / B.5 blocked on B.2 result.
