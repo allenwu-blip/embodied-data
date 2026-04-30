@@ -25,3 +25,16 @@ data/
 .ruff_cache/
 htmlcov/
 .coverage
+
+# Secrets (never commit)
+.env
+.env.*
+*.env
+
+# Sprint 2: gated AgiBot Beta fixture (fetched only if HF_TOKEN present)
+data/agibot_beta_sample/
+
+# Build artifacts
+dist/
+*.tar.gz
+*.whl
