@@ -63,6 +63,7 @@ def convert_agibot_to_lerobot_v3(*, src: Path, dst: Path) -> None:
     dst = Path(dst)
 
     h5_path, task_info_path, head_video = _resolve_inputs(src)
+    _assert_digitalworld_sim(h5_path)
 
     state_22, n_frames, _ = _read_state(h5_path)
     action_22 = _first_diff_action(state_22)
@@ -336,6 +337,7 @@ def _discover_episodes(src: Path) -> list[_EpisodeSource]:
 
 
 def _load_episode(src_ep: _EpisodeSource) -> _PerEpisodePayload:
+    _assert_digitalworld_sim(src_ep.h5_path)
     state_22, n_frames, _ = _read_state(src_ep.h5_path)
     action_22 = _first_diff_action(state_22)
     task_name = _read_task_name(src_ep.task_info_path)
@@ -689,6 +691,34 @@ def _write_info_json_multi(
 # ---------------------------------------------------------------------------
 # Single-episode internals (preserved from Sprint 1).
 # ---------------------------------------------------------------------------
+
+
+def _assert_digitalworld_sim(h5_path: Path) -> None:
+    """Pre-flight: refuse real-robot AgiBot captures (Beta / Alpha) cleanly.
+
+    DigitalWorld sim h5 has ``state/joint/position`` shape ``(N, 34)`` *and* a
+    ``state/joint.attrs["name"]`` array of 34 joint names. Beta uses ``(N, 14)``
+    with no ``name`` attr. We refuse instead of silently producing a broken
+    LeRobot v3 dataset; real-robot ingest is on the v0.2 roadmap.
+    """
+    with h5py.File(h5_path, "r") as f:
+        if "state/joint/position" not in f:
+            raise ValueError(
+                f"AgiBot HDF5 at {h5_path} is missing /state/joint/position; "
+                "v0.1 supports DigitalWorld sim only — see docs/schema-agibot.md"
+            )
+        joint_dim = int(f["state/joint/position"].shape[1])
+        joint_grp = f.get("state/joint")
+        attrs_name = joint_grp.attrs.get("name") if joint_grp is not None else None
+        attrs_missing = attrs_name is None
+    if joint_dim != 34 or attrs_missing:
+        raise ValueError(
+            f"detected real-robot AgiBot capture (joint_dim={joint_dim}, "
+            f"attrs.name={'present' if not attrs_missing else 'missing'}) — "
+            "embodied-data v0.1 supports AgiBot DigitalWorld sim only. "
+            "Real Alpha/Beta forward conversion is on the v0.2 roadmap; "
+            "see docs/schema-agibot.md for detection rules."
+        )
 
 
 def _resolve_inputs(src: Path) -> tuple[Path, Path, Path]:
