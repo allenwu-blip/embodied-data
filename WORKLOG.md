@@ -36,3 +36,56 @@ Format: lerobot-v3 | Total frames: 375 | fps: 30 | State dim: 22 | Action dim: 2
 - Multi-episode batching with chunk rollover
 - Bidirectional: `lerobot-v3 → agibot` (lower priority — fewer downstream users)
 - Drafting comments to post on the 5 in-scope upstream issues, awaiting Allen's [PUBLISH] approval
+
+---
+
+## Sprint 2 — 2026-04-30 (v0.1 GA scope locked, plumbing ready)
+
+### Done
+
+**P0 (the v0.1 trust moat)**
+- **Batch episode pipeline** — `convert_agibot_batch` with `--max-episodes / --resume / --workers`, OOM-safe streaming, rich.Progress, idempotent on rerun (uuid map under `meta/extra/uuid_map.parquet`). Subagent A. Stats recomputed from on-disk parquets at finalize to dodge float32 path divergence.
+- **Reverse converter `lerobot-v3 → agibot`** — Subagent B stalled at 600s with no real output (second timeout this project; same outcome as Sprint 1 Subagent D). Tech Lead implemented directly: `convert_lerobot_v3_to_agibot` zero-fills the 12 dropped passive joints, refuses multi-episode v3 cleanly, byte-copies the v3 mp4 to the AgiBot sibling layout. **Round-trip test** (`tests/test_round_trip.py`): AgiBot → LeRobot v3 → AgiBot preserves all 22 forwarded joints within `rtol=1e-5 atol=1e-6` and timestamps exactly.
+- **Real HF dataset validation** — Subagent C surveyed 3 public v3 datasets:
+  - `lerobot/pusht` → PASS (5/5 checks after schema check addition)
+  - `lerobot/unitreeh1_warehouse` → PASS
+  - `gpudad/so101_pick_cube_chunked` → FAIL (alignment, expected — head-only download against one-mp4-per-episode dataset; FAIL also fires on missing `tasks` column and null int fields, all real).
+  - 5 silent gaps in our validator surfaced; **3 patched in this sprint** via the new `check_schema_conformance` (codebase_version, info.json int types, episode-meta `tasks` column, tasks.parquet column flexibility), 2 deferred to v0.2 (full mp4 corpus, image-PNG mode coverage).
+
+**P1**
+- **CLI polish** — Subagent E: top-level `--json`, `--version` with git short-hash + build date, new `inspect` command for h5/parquet schema dump, error suggestions across all commands ("AgiBot expects parallel meta_info/<task>/<uuid>/ and observations/...", "v3 dataset must have at least the top_head camera for v0.1 reverse", etc.).
+- **PyPI build plumbing** — Subagent D: `uv build` produces wheel + sdist; `twine check` PASSES on both; `scripts/check_version.py` + CI step + `tags: ['v*']` push trigger guard against version-tag drift; `docs/release-checklist.md` (7-step) and `docs/release-v0.1.0.md` (release notes draft) ready. `pyproject.toml` version stays at `0.0.1` — Allen bumps to `0.1.0` on release.
+
+### Test count progression
+- Sprint 1 closeout: 23 passed
+- Post Sprint 2 wave 1 (A): 27 passed
+- Post Sprint 2 wave 2 (E): 48 passed
+- Post Sprint 2 closeout (B + reverse + round-trip + schema check): **50 passed**
+
+### Verification
+```
+$ uv run embodied-data convert data/agibot_sample/meta_info /tmp/v3 --from agibot --to lerobot-v3 --max-episodes 1
+done: 375 frames, 1 task, 1 camera (observation.images.top_head) → /tmp/v3
+$ uv run embodied-data convert /tmp/v3 /tmp/back --from lerobot-v3 --to agibot
+done: 375 frames → meta_info/place_objects_into_handbag/<uuid> (+ sibling video) | fps=30
+$ uv run embodied-data validate data/hf_v3_samples/pusht
+Result: PASS
+$ uv run embodied-data inspect data/agibot_sample/meta_info/digitaltwin_3/000aa0b4-.../proprio_states.h5
+(prints group/dataset tree)
+$ uv build && uv run python -m twine check dist/*
+PASSED (wheel + sdist)
+```
+
+### Blockers / open items
+- HF_TOKEN [CRED] still absent — Beta access deferred to v0.1.1 (not blocking GA).
+- Two subagent timeouts (Sprint 1 D / Sprint 2 B) on multi-file feature implementations. Pattern: timeout when subagent is asked to write 200+ LOC + tests in one go. Mitigation working: Tech Lead has authoritative schema docs already on disk, so direct takeover is ~15 min and merges cleanly. Worth keeping subagent prompts shorter going forward.
+- 5 in-scope GitHub issue comment drafts in `docs/issue-comments-drafts.md` still pending Allen [PUBLISH] approval.
+- v0.1 release: pending Allen [PUBLISH] approval to (1) push the `v0.1.0` tag and (2) `twine upload`. Plumbing is fully ready per `docs/release-checklist.md`.
+
+### v0.2 candidates (do NOT pre-batch)
+- Multi-camera (7 fisheye + hand) and depth (uint16 mm PNG bytes)
+- True multi-episode-per-parquet rollover (Sprint 2 used one-episode-per-file simplification)
+- Multi-episode reverse converter
+- Cross-embodiment action retargeting (when third-party `lerobot-v3 → AgiBot` users actually appear)
+- 2 remaining validator hardening items deferred from C's findings (full-corpus alignment, image-mode datasets)
+- Generic `lerobot-v2 → lerobot-v3` upgrade (would address #2446 partially)

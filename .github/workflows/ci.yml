@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -31,3 +32,11 @@ jobs:
 
       - name: Pytest with coverage
         run: uv run pytest -q --cov=embodied_data --cov-report=term-missing
+
+      - name: Version-tag drift check (always print, strict on tag pushes)
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            uv run python scripts/check_version.py --strict
+          else
+            uv run python scripts/check_version.py
+          fi
