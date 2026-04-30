@@ -252,11 +252,67 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
     )
 
 
+def check_schema_conformance(path: Path, info: dict) -> CheckResult:
+    """Surface the spec violations C found in real HF datasets:
+    - codebase_version mismatch (e.g. v2.1 silently mutated)
+    - int fields nulled-out (chunks_size, data/video_files_size_in_mb)
+    - meta/episodes parquet missing 'tasks' column (spec §3)
+    - meta/tasks.parquet missing both 'task' and '__index_level_0__' columns
+    """
+    fails: list[str] = []
+    warns: list[str] = []
+
+    cv = info.get("codebase_version")
+    if cv != "v3.0":
+        fails.append(f"codebase_version={cv!r}, expected 'v3.0'")
+
+    for k in ("chunks_size", "data_files_size_in_mb", "video_files_size_in_mb"):
+        v = info.get(k)
+        if v is None:
+            warns.append(f"{k} is null (spec says int; readers fall back to defaults)")
+        elif not isinstance(v, int):
+            warns.append(f"{k}={v!r} not int")
+
+    ep_meta_files = sorted((path / "meta" / "episodes").glob("**/*.parquet"))
+    if ep_meta_files:
+        try:
+            schema = pq.read_schema(ep_meta_files[0])
+            if "tasks" not in set(schema.names):
+                fails.append(f"{ep_meta_files[0].name} missing required 'tasks' column (spec §3)")
+        except Exception as exc:  # noqa: BLE001
+            fails.append(f"cannot read {ep_meta_files[0].name}: {exc}")
+
+    tasks_pq = path / "meta" / "tasks.parquet"
+    if tasks_pq.is_file():
+        try:
+            tcols = set(pq.read_schema(tasks_pq).names)
+            if "task" not in tcols and "__index_level_0__" not in tcols:
+                fails.append(
+                    f"tasks.parquet has neither 'task' nor '__index_level_0__'; got {sorted(tcols)}"
+                )
+        except Exception as exc:  # noqa: BLE001
+            fails.append(f"cannot read tasks.parquet: {exc}")
+
+    if fails:
+        detail = "; ".join(fails)
+        if warns:
+            detail += f" | warns: {'; '.join(warns)}"
+        return CheckResult("schema conformance", "FAIL", detail)
+    if warns:
+        return CheckResult("schema conformance", "WARN", "; ".join(warns))
+    return CheckResult(
+        "schema conformance",
+        "PASS",
+        f"codebase_version={cv}, info.json int fields populated, episode meta has 'tasks'",
+    )
+
+
 def validate(path: Path) -> list[CheckResult]:
     info = _load_info(path)
     if info is None:
         return [CheckResult("meta/info.json", "FAIL", "missing")]
     return [
+        check_schema_conformance(path, info),
         check_fps(path, info),
         check_timestamp(path, info),
         check_action_dim(path, info),

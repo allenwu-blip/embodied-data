@@ -4,6 +4,8 @@ from typing import Literal
 from rich.console import Console
 from rich.table import Table
 
+from embodied_data._emit import emit_json
+
 Status = Literal["PASS", "WARN", "FAIL", "SKIP"]
 
 
@@ -48,7 +50,53 @@ def render(
         console.print("Result: [green]PASS[/green]")
 
 
+def render_json(
+    *,
+    path: str,
+    fmt: str,
+    results: list[CheckResult],
+    exit_code_value: int,
+) -> None:
+    overall = "PASS"
+    if any(r.status == "FAIL" for r in results):
+        overall = "FAIL"
+    elif any(r.status == "WARN" for r in results):
+        overall = "WARN"
+    payload = {
+        "path": path,
+        "format": fmt,
+        "results": [{"name": r.name, "status": r.status, "detail": r.detail} for r in results],
+        "result": overall,
+        "exit_code": exit_code_value,
+    }
+    emit_json(payload)
+
+
 def exit_code(results: list[CheckResult]) -> int:
     if any(r.status == "FAIL" for r in results):
         return 1
     return 0
+
+
+def suggestion_for(result: CheckResult, *, dataset_path: str) -> str | None:
+    """Return a next-step hint for a failing check, or None if generic."""
+    name = result.name
+    if name == "timestamp monotonicity":
+        return (
+            f"run `embodied-data inspect {dataset_path}/proprio_states.h5` to see "
+            "the offending frame range"
+        )
+    if name == "frame-video alignment":
+        return (
+            "h5 row count diverges from video frame count — re-export the episode "
+            "or trim the longer side; see issue #149"
+        )
+    if name == "action-dim consistency":
+        return (
+            "state and action arrays have mismatched shapes; verify the upstream "
+            "AgiBot HDF5 contains both /state/joint/position and /action/joint/position "
+            "with identical (frames, dim)"
+        )
+    if name == "fps consistency":
+        return "different mp4s report different fps; re-encode the inconsistent ones to 30fps"
+    return None

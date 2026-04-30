@@ -1,11 +1,17 @@
 from pathlib import Path
 
-from rich.console import Console
-
+from embodied_data._emit import emit_error, emit_json, get_console
+from embodied_data._state import state
 from embodied_data.validate import agibot, lerobot_v3
-from embodied_data.validate._report import CheckResult, exit_code, render
+from embodied_data.validate._report import (
+    CheckResult,
+    exit_code,
+    render,
+    render_json,
+    suggestion_for,
+)
 
-console = Console()
+console = get_console()
 
 
 def _detect(path: Path) -> str:
@@ -23,8 +29,11 @@ def _detect(path: Path) -> str:
 def run_validate(*, path: Path, fmt: str) -> None:
     """Check fps / timestamps / action dim / frame alignment."""
     if not path.exists():
-        console.print(f"[red]Path does not exist: {path}[/red]")
-        raise SystemExit(2)
+        emit_error(
+            f"path does not exist: {path}",
+            suggestion="pass an existing dataset directory",
+            exit_code=2,
+        )
 
     if fmt == "auto":
         fmt = _detect(path)
@@ -35,14 +44,29 @@ def run_validate(*, path: Path, fmt: str) -> None:
     elif fmt == "agibot":
         results = agibot.validate(path)
     else:
-        console.print(
-            f"[red]Unknown format for {path}.[/red] "
-            "Expected meta/info.json (lerobot-v3) or proprio_states.h5 (agibot). "
-            "Pass --format explicitly to override."
+        emit_error(
+            f"unknown format for {path}",
+            suggestion=(
+                "use `--format lerobot-v3` or `--format agibot` to override; "
+                "expected meta/info.json or proprio_states.h5 in path"
+            ),
+            exit_code=2,
         )
-        raise SystemExit(2)
+        return  # unreachable; emit_error raises
 
-    render(console, path=str(path), fmt=fmt, results=results)
     code = exit_code(results)
+    if state.json_output:
+        render_json(path=str(path), fmt=fmt, results=results, exit_code_value=code)
+    else:
+        render(console, path=str(path), fmt=fmt, results=results)
+        # Surface per-check suggestions for FAILs in non-JSON mode.
+        for r in results:
+            if r.status == "FAIL":
+                hint = suggestion_for(r, dataset_path=str(path))
+                if hint:
+                    console.print(f"[dim]suggestion:[/dim] {hint}")
     if code != 0:
         raise SystemExit(code)
+
+
+__all__ = ["run_validate", "emit_json"]
