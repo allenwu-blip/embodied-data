@@ -77,12 +77,20 @@ def _read_h5_dims(h5_path: Path) -> tuple[int, int, int, str, bool]:
             if action_pos.ndim == 2:
                 action_dim = int(action_pos.shape[1])
 
-        robot_type = "a2d"
-        robot_attrs = f.get("state/robot")
-        if robot_attrs is not None and "name" in robot_attrs.attrs:
-            names = robot_attrs.attrs["name"]
-            if hasattr(names, "__len__") and len(names) > 0:
-                robot_type = str(names[0]).lower()
+        # Read robot_type from state/robot.attrs['name'] (sim writes it as
+        # 'A2D_fixed', see docs/schema-agibot.md §1). Fall back to 'unknown'
+        # rather than the constant 'a2d' so Beta data — which has no such
+        # attr — surfaces honestly.
+        robot_type = "unknown"
+        robot_grp = f.get("state/robot")
+        if robot_grp is not None:
+            name_attr = robot_grp.attrs.get("name")
+            if name_attr is not None:
+                if hasattr(name_attr, "__len__") and not isinstance(name_attr, (str, bytes)):
+                    if len(name_attr) > 0:
+                        robot_type = str(name_attr[0]).lower()
+                else:
+                    robot_type = str(name_attr).lower()
 
         joint_grp = f.get("state/joint")
         attrs_name = joint_grp.attrs.get("name") if joint_grp is not None else None
@@ -102,7 +110,7 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
         raise ValueError(f"agibot episode dir missing both proprio_state[s]*.h5 and videos: {path}")
 
     frames = raw_state_dim = action_dim = 0
-    robot_type = "a2d"
+    robot_type = "unknown"
     can_subselect = False
     if h5_present:
         frames, raw_state_dim, action_dim, robot_type, can_subselect = _read_h5_dims(h5_path)
