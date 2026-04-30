@@ -5,6 +5,23 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed (v0.1.1 candidates — pending [PUBLISH])
+
+- **Filename glob** — accept both `proprio_states.h5` (DigitalWorld) and `proprio_stats.h5` (Beta) across `convert`, `validate`, `preview`. Closes silent "format unknown" failure on real Beta data.
+- **Detect-and-refuse real-robot data** — when AgiBot input has 14-joint shape or missing `state/joint.attrs["name"]`, `convert` exits with a clear "v0.1 supports DigitalWorld sim only; v0.2 roadmap covers Beta/Alpha" message instead of a raw traceback.
+- **`task_info` list-of-episodes** — `convert` and `preview` correctly handle Beta's list-of-399-episode-dicts JSON layout. Falls back to first entry's `task_name`. No more silent "(unknown)" task.
+- **`preview` reports actual joint count** — no longer claims "State dim: 22 (raw 14)" when the schema can't subselect. Surfaces the mismatch.
+- **`preview` reads `robot_type` from h5 attrs** — no more hardcoded "a2d"; falls back to "unknown" when attrs missing.
+- **`convert` error path catches `KeyError` / `ValueError`** — no more raw Rich tracebacks on schema mismatches.
+- **`inspect` prints `.attrs`** — group/dataset attrs now appear in the dump (cheap diagnostic for catching missing-`name`-attr issues).
+
+### Known limitations (still v0.1.x)
+
+- AgiBot Beta/Alpha real-robot **forward conversion** is not supported. Refuse-and-document is the v0.1.1 behavior; full ingest is v0.2.
+- `validate` still treats `int64` ns timestamps as a silent PASS on monotonicity (rate inference would lie). Fixing the WARN message is v0.2.
+
 ## [0.1.0] — 2026-04-30
 
 First public release. Bidirectional converter and validator for **AgiBot World ↔
