@@ -6,6 +6,8 @@ from pathlib import Path
 import av
 import h5py
 
+from embodied_data._agibot_paths import find_proprio_h5
+
 Stat = tuple[str, str]
 
 # Per docs/schema-agibot.md §3 the official converter keeps 22 of 34 raw joints.
@@ -83,12 +85,12 @@ def collect_agibot_stats(path: Path, n: int) -> tuple[list[Stat], str]:
     """Read a single AgiBot episode dir. n is accepted for signature parity; AgiBot
     meta_info layout is one episode per dir, so we never truncate."""
     del n
-    h5_path = path / "proprio_states.h5"
+    h5_path = find_proprio_h5(path)
     video_dir = _find_video_dir(path)
 
-    h5_present = h5_path.is_file()
+    h5_present = h5_path is not None
     if not h5_present and video_dir is None:
-        raise ValueError(f"agibot episode dir missing both proprio_states.h5 and videos: {path}")
+        raise ValueError(f"agibot episode dir missing both proprio_state[s]*.h5 and videos: {path}")
 
     frames = raw_state_dim = action_dim = 0
     robot_type = "a2d"

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rich.table import Table
 
+from embodied_data._agibot_paths import find_proprio_h5
 from embodied_data._emit import emit_error, emit_json, get_console
 from embodied_data._state import state
 from embodied_data.preview.agibot import collect_agibot_stats
@@ -21,7 +22,7 @@ def detect_format(path: Path) -> str | None:
         return None
     if (path / "meta" / "info.json").is_file():
         return "lerobot-v3"
-    if (path / "proprio_states.h5").is_file():
+    if find_proprio_h5(path) is not None:
         return "agibot"
     # convert_to_lerobot.py lives at <root>/scripts/, so an episode dir at
     # <root>/meta_info/<task>/<uuid>/ is 3 levels deep relative to root.
@@ -54,7 +55,7 @@ def run_preview(*, path: Path, n: int) -> None:
         emit_error(
             f"cannot read {path} or unknown format",
             suggestion=(
-                "expected meta/info.json (lerobot-v3) or proprio_states.h5 (agibot) in path"
+                "expected meta/info.json (lerobot-v3) or proprio_state[s]*.h5 (agibot) in path"
             ),
             exit_code=2,
         )
@@ -69,7 +70,7 @@ def run_preview(*, path: Path, n: int) -> None:
         emit_error(
             f"failed to read {fmt} dataset at {path}: {exc}",
             suggestion=(
-                "verify the dataset is intact; for agibot, ensure proprio_states.h5 contains "
+                "verify the dataset is intact; for agibot, ensure proprio_state[s]*.h5 contains "
                 "/state/joint/position and a sibling observations/<task>/<uuid>/video tree exists"
             ),
             exit_code=2,

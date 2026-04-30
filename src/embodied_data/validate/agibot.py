@@ -4,14 +4,15 @@ import av
 import h5py
 import numpy as np
 
+from embodied_data._agibot_paths import find_proprio_h5, iter_proprio_h5
 from embodied_data.validate._report import CheckResult
 
 
 def _find_h5(path: Path) -> Path | None:
-    direct = path / "proprio_states.h5"
-    if direct.exists():
+    direct = find_proprio_h5(path)
+    if direct is not None:
         return direct
-    matches = list(path.glob("**/proprio_states.h5"))
+    matches = iter_proprio_h5(path)
     return matches[0] if matches else None
 
 
@@ -61,7 +62,7 @@ def check_fps(videos: list[Path]) -> CheckResult:
 
 def check_timestamp(h5_path: Path | None, videos: list[Path]) -> CheckResult:
     if h5_path is None:
-        return CheckResult("timestamp monotonicity", "SKIP", "no proprio_states.h5 found")
+        return CheckResult("timestamp monotonicity", "SKIP", "no proprio_state[s]*.h5 found")
     with h5py.File(h5_path, "r") as f:
         if "timestamp" not in f:
             return CheckResult("timestamp monotonicity", "FAIL", "/timestamp dataset missing")
@@ -106,7 +107,7 @@ def check_timestamp(h5_path: Path | None, videos: list[Path]) -> CheckResult:
 
 def check_action_dim(h5_path: Path | None) -> CheckResult:
     if h5_path is None:
-        return CheckResult("action-dim consistency", "SKIP", "no proprio_states.h5 found")
+        return CheckResult("action-dim consistency", "SKIP", "no proprio_state[s]*.h5 found")
     with h5py.File(h5_path, "r") as f:
         try:
             sj = f["state/joint/position"]

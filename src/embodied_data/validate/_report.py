@@ -83,7 +83,7 @@ def suggestion_for(result: CheckResult, *, dataset_path: str) -> str | None:
     name = result.name
     if name == "timestamp monotonicity":
         return (
-            f"run `embodied-data inspect {dataset_path}/proprio_states.h5` to see "
+            f"run `embodied-data inspect {dataset_path}/proprio_state*.h5` to see "
             "the offending frame range"
         )
     if name == "frame-video alignment":

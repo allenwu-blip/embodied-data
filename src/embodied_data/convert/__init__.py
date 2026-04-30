@@ -9,6 +9,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from embodied_data._agibot_paths import PROPRIO_GLOB
 from embodied_data._emit import emit_error, emit_json, get_console
 from embodied_data._state import state
 
@@ -56,10 +57,10 @@ def _read_dst_totals(dst: Path) -> tuple[int, int]:
 
 
 def _read_agibot_dst_totals(dst: Path) -> tuple[int, int]:
-    """Return (episodes, frames) for an AgiBot-shape output (dst/meta_info/**/proprio_states.h5)."""
+    """Return (episodes, frames) for an AgiBot-shape output (dst/meta_info/**/proprio_state*.h5)."""
     import h5py
 
-    h5_paths = list((dst / "meta_info").rglob("proprio_states.h5")) if dst.exists() else []
+    h5_paths = list((dst / "meta_info").rglob(PROPRIO_GLOB)) if dst.exists() else []
     total_frames = 0
     for p in h5_paths:
         try:
@@ -182,7 +183,7 @@ def run_convert(
                 str(exc),
                 suggestion=(
                     "verify --max-episodes is positive and that the source tree contains "
-                    "discoverable episodes (proprio_states.h5 + task_info.json)"
+                    "discoverable episodes (proprio_state[s]*.h5 + task_info.json)"
                 ),
                 exit_code=2,
             )

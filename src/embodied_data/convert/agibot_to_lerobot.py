@@ -21,6 +21,8 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from embodied_data._agibot_paths import PROPRIO_GLOB, find_proprio_h5
+
 console = Console()
 
 # 22-joint subselection order from upstream script:272-308.
@@ -135,7 +137,7 @@ def convert_agibot_batch(
     sources = _discover_episodes(src)
     if not sources:
         raise FileNotFoundError(
-            f"no AgiBot episodes found under {src} (expected **/<task>/<uuid>/proprio_states.h5)"
+            f"no AgiBot episodes found under {src} (expected **/<task>/<uuid>/proprio_state[s]*.h5)"
         )
     sources.sort(key=lambda s: s.key)
     if max_episodes is not None:
@@ -289,20 +291,20 @@ def convert_agibot_batch(
 
 
 def is_batch_src(src: Path) -> bool:
-    """Heuristic: src is batch if its own dir lacks proprio_states.h5."""
-    return not (Path(src) / "proprio_states.h5").is_file()
+    """Heuristic: src is batch if its own dir lacks any proprio_state[s]*.h5."""
+    return find_proprio_h5(Path(src)) is None
 
 
 def _discover_episodes(src: Path) -> list[_EpisodeSource]:
     out: list[_EpisodeSource] = []
-    for h5 in src.rglob("proprio_states.h5"):
+    for h5 in src.rglob(PROPRIO_GLOB):
         if not h5.is_file():
             continue
         ep_dir = h5.parent
         task_info = ep_dir / "task_info.json"
         if not task_info.is_file():
             continue
-        # Recover (task, uuid). Layout is .../<task>/<uuid>/proprio_states.h5.
+        # Recover (task, uuid). Layout is .../<task>/<uuid>/proprio_state[s]*.h5.
         try:
             task = ep_dir.parent.name
             uuid = ep_dir.name
@@ -690,10 +692,12 @@ def _write_info_json_multi(
 
 
 def _resolve_inputs(src: Path) -> tuple[Path, Path, Path]:
-    h5_path = src / "proprio_states.h5"
+    h5_path = find_proprio_h5(src)
     task_info_path = src / "task_info.json"
-    if not h5_path.is_file():
-        raise FileNotFoundError(f"expected proprio_states.h5 under {src}")
+    if h5_path is None:
+        raise FileNotFoundError(
+            f"expected proprio_states.h5 (or proprio_stats.h5 for Beta) under {src}"
+        )
     if not task_info_path.is_file():
         raise FileNotFoundError(f"expected task_info.json under {src}")
 

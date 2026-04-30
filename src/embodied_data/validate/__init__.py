@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from embodied_data._agibot_paths import PROPRIO_GLOB, find_proprio_h5
 from embodied_data._emit import emit_error, emit_json, get_console
 from embodied_data._state import state
 from embodied_data.validate import agibot, lerobot_v3
@@ -17,9 +18,9 @@ console = get_console()
 def _detect(path: Path) -> str:
     if (path / "meta" / "info.json").exists():
         return "lerobot-v3"
-    if (path / "proprio_states.h5").exists():
+    if find_proprio_h5(path) is not None:
         return "agibot"
-    if list(path.glob("**/proprio_states.h5")):
+    if list(path.glob(f"**/{PROPRIO_GLOB}")):
         return "agibot"
     if (path.parent / "scripts" / "convert_to_lerobot.py").exists():
         return "agibot"
@@ -48,7 +49,7 @@ def run_validate(*, path: Path, fmt: str) -> None:
             f"unknown format for {path}",
             suggestion=(
                 "use `--format lerobot-v3` or `--format agibot` to override; "
-                "expected meta/info.json or proprio_states.h5 in path"
+                "expected meta/info.json or proprio_state[s]*.h5 in path"
             ),
             exit_code=2,
         )
