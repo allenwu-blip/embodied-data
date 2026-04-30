@@ -324,3 +324,36 @@ def test_patch8_inspect_beta_state_joint_attrs_visible_in_human_mode():
     assert result.exit_code == 0, result.output
     # The path /state/joint should be visible in the dump as a group.
     assert "/state/joint" in result.output
+
+
+@needs_beta
+def test_patch9_batch_discover_refuses_beta_with_structured_error(tmp_path: Path):
+    """Batch convert against a Beta-shaped tree must refuse loudly, not silently
+    return zero episodes. _discover_episodes silently skipped Beta because the
+    sim assumes /meta_info/<task>/<uuid>/task_info.json — Beta has neither the
+    /meta_info/ prefix nor the un-suffixed task_info.json. Patch raises a
+    structured ValueError that gets wrapped into a clean exit-2 with hint."""
+    # Layout the Beta sample mirror via symlinks to avoid copying the 1.17MB h5.
+    src = tmp_path / "beta_root" / "675" / "936938"
+    src.mkdir(parents=True)
+    (src / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
+    (tmp_path / "beta_root" / "task_info_675.json").symlink_to(BETA_TASK_INFO.resolve())
+
+    result = runner.invoke(
+        app,
+        [
+            "convert",
+            str(tmp_path / "beta_root"),
+            str(tmp_path / "out"),
+            "--from",
+            "agibot",
+            "--to",
+            "lerobot-v3",
+            "--max-episodes",
+            "1",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+    out = result.output.lower()
+    assert "real-robot" in out or "beta-style" in out, result.output
+    assert "v0.1" in out or "v0.2" in out, result.output

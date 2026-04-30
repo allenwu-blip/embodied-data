@@ -298,12 +298,23 @@ def is_batch_src(src: Path) -> bool:
 
 def _discover_episodes(src: Path) -> list[_EpisodeSource]:
     out: list[_EpisodeSource] = []
+    skipped_beta_like = 0  # h5 found but layout looks like real Beta, not sim
     for h5 in src.rglob(PROPRIO_GLOB):
         if not h5.is_file():
             continue
         ep_dir = h5.parent
+        ep_dir_str = str(ep_dir)
         task_info = ep_dir / "task_info.json"
+        # Beta sample uses task_info_<task_id>.json one level up + no /meta_info/ prefix.
+        # Detect both Beta layout markers so we can raise a clear refusal below.
+        looks_beta = (
+            "/meta_info/" not in ep_dir_str
+            or not task_info.is_file()
+            and any(ep_dir.parent.glob("task_info_*.json"))
+        )
         if not task_info.is_file():
+            if looks_beta:
+                skipped_beta_like += 1
             continue
         # Recover (task, uuid). Layout is .../<task>/<uuid>/proprio_state[s]*.h5.
         try:
@@ -312,8 +323,8 @@ def _discover_episodes(src: Path) -> list[_EpisodeSource]:
         except IndexError:
             continue
         # Sibling video path lives under .../observations/<task>/<uuid>/video/head.mp4.
-        ep_dir_str = str(ep_dir)
         if "/meta_info/" not in ep_dir_str:
+            skipped_beta_like += 1
             continue
         obs_dir = Path(ep_dir_str.replace("/meta_info/", "/observations/", 1))
         head_video = obs_dir / "video" / "head.mp4"
@@ -327,6 +338,13 @@ def _discover_episodes(src: Path) -> list[_EpisodeSource]:
                 task_info_path=task_info,
                 head_video=head_video,
             )
+        )
+    if not out and skipped_beta_like:
+        raise ValueError(
+            f"detected {skipped_beta_like} real-robot AgiBot capture(s) under {src} "
+            "(Beta-style layout: no /meta_info/ prefix and/or task_info_<task>.json "
+            "instead of task_info.json). embodied-data v0.1 supports DigitalWorld sim "
+            "only; Beta/Alpha forward conversion is on the v0.2 roadmap."
         )
     return out
 
