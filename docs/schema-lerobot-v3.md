@@ -66,7 +66,7 @@ Backed by `DatasetInfo` dataclass
 | `total_tasks` | int | 0 | |
 | `chunks_size` | int | 1000 | |
 | `data_files_size_in_mb` | int | 100 | |
-| `video_files_size_in_mb` | int | 200 | |
+| `video_files_size_in_mb` | int | 200 | upstream may have raised to 500; observed in `lerobot/pusht` and `lerobot/unitreeh1_warehouse` (Sprint 2 HF survey, `docs/hf-dataset-findings.md`) |
 | `data_path` | str | `DEFAULT_DATA_PATH` | template |
 | `video_path` | str \| null | `DEFAULT_VIDEO_PATH` | `null` if no videos |
 | `robot_type` | str \| null | None | |
