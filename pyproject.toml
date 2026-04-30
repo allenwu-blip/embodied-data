@@ -1,7 +1,7 @@
 [project]
 name = "embodied-data"
-version = "0.0.1"
-description = "Cross-format converter and validator for embodied AI datasets (AgiBot World, LeRobot, RLDS, and more)."
+version = "0.1.0"
+description = "Bidirectional converter and validator for AgiBot World ↔ LeRobot v3 datasets."
 readme = "README.md"
 authors = [
     { name = "Tong", email = "allenwu@umich.edu" }
