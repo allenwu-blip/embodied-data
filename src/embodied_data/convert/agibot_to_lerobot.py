@@ -770,9 +770,45 @@ def _first_diff_action(state_22: np.ndarray) -> np.ndarray:
 
 
 def _read_task_name(task_info_path: Path) -> str:
+    """Resolve task_name from a sim or Beta-style task_info JSON.
+
+    DigitalWorld sim writes a single dict at ``<episode_dir>/task_info.json``.
+    Beta writes a list of per-episode dicts at the *task root*
+    (``task_info_<task_id>.json``); when that list shape leaks into the
+    per-episode path we resolve it by matching ``episode_id`` against the
+    parent directory name, falling back to entry ``[0]``.
+    """
     with task_info_path.open() as f:
         info = json.load(f)
-    return str(info.get("task_name", "unknown"))
+    if isinstance(info, list):
+        if not info:
+            raise ValueError(
+                f"task_info JSON at {task_info_path} is an empty list; "
+                "v0.1 only supports DigitalWorld sim (single-dict layout)"
+            )
+        episode_dir_name = task_info_path.parent.name
+        # Try to match the parent dir (Beta uses int episode_id like 936938).
+        try:
+            target = int(episode_dir_name)
+        except ValueError:
+            target = None
+        if target is not None:
+            for entry in info:
+                if isinstance(entry, dict) and entry.get("episode_id") == target:
+                    return str(entry.get("task_name", "unknown"))
+        # Fall back to first entry (still better than silently dropping the name).
+        first = info[0]
+        if isinstance(first, dict) and "task_name" in first:
+            return str(first["task_name"])
+        raise ValueError(
+            f"task_info JSON at {task_info_path} is a list without a usable "
+            "task_name; v0.1 only supports DigitalWorld sim"
+        )
+    if isinstance(info, dict):
+        return str(info.get("task_name", "unknown"))
+    raise ValueError(
+        f"task_info JSON at {task_info_path} is neither dict nor list (got {type(info).__name__})"
+    )
 
 
 def _stats(arr: np.ndarray) -> dict:
