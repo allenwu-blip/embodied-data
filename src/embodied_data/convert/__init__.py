@@ -178,15 +178,20 @@ def run_convert(
                 ),
                 exit_code=2,
             )
-        except ValueError as exc:
-            emit_error(
-                str(exc),
-                suggestion=(
+        except (KeyError, ValueError) as exc:
+            msg = str(exc)
+            if "real-robot" in msg or "DigitalWorld sim only" in msg:
+                hint = (
+                    "real Alpha/Beta forward conversion is on the v0.2 roadmap; "
+                    "see docs/schema-agibot.md for detection rules"
+                )
+            else:
+                hint = (
                     "verify --max-episodes is positive and that the source tree contains "
-                    "discoverable episodes (proprio_state[s]*.h5 + task_info.json)"
-                ),
-                exit_code=2,
-            )
+                    "discoverable episodes (proprio_state[s]*.h5 + task_info.json); "
+                    "see docs/schema-agibot.md for the expected layout"
+                )
+            emit_error(msg, suggestion=hint, exit_code=2)
         duration = time.monotonic() - t0
 
         if state.json_output:
