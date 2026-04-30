@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local data
+data/
+*.h5
+*.hdf5
+*.parquet
+*.mp4
+*.svo
+
+# OS
+.DS_Store
+
+# Test / coverage / lint caches
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
