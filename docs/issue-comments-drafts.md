@@ -17,7 +17,7 @@ Repository: <https://github.com/allenwu-blip/embodied-data>
   > v0.1.0 just released — `pip install embodied-data` to try ([release notes](https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0)).
   >
   > If you can share a small slice we'd like to confirm the fix on your data.
-- **Status**: pending Allen second-round review (post-v0.1.0)
+- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/18#issuecomment-4356514656>, comment_id 4356514656
 
 ### #124 — `KeyError: Column 'actions' not in dataset` (lerobot v2.1)
 - **Target URL**: <https://github.com/OpenDriveLab/AgiBot-World/issues/124>
