@@ -57,6 +57,31 @@ def _inspect_parquet(path: Path) -> dict[str, Any]:
     }
 
 
+_ATTR_VALUE_MAX = 80
+
+
+def _truncate_attr_value(v: Any) -> Any:
+    """Limit a single attr value to 80 chars in human-mode display.
+
+    Strings longer than 80 chars get an ellipsis. Lists/tuples are truncated
+    by element count once their repr passes the limit. Other types fall
+    through to ``str(...)`` with the same length cap.
+    """
+    if isinstance(v, str):
+        return v if len(v) <= _ATTR_VALUE_MAX else v[: _ATTR_VALUE_MAX - 3] + "..."
+    if isinstance(v, (list, tuple)):
+        rendered = repr(v)
+        if len(rendered) <= _ATTR_VALUE_MAX:
+            return v
+        # Drop trailing elements until we fit.
+        head = list(v)
+        while head and len(repr(head + ["..."])) > _ATTR_VALUE_MAX:
+            head.pop()
+        return head + ["..."]
+    s = str(v)
+    return s if len(s) <= _ATTR_VALUE_MAX else s[: _ATTR_VALUE_MAX - 3] + "..."
+
+
 def _to_json_safe(v: Any) -> Any:
     if v is None or isinstance(v, (bool, int, float, str)):
         return v
@@ -100,7 +125,11 @@ def run_inspect(*, path: Path) -> None:
             else:
                 console.print(f"  {n['name']}/  (group)")
             if n["attrs"]:
-                console.print(f"      attrs={n['attrs']}")
+                # Truncate each attr value to 80 chars so a multi-MB blob doesn't
+                # blow up the dump. Per-key truncation (not Rich line-wrap) so the
+                # raw value cannot be reconstructed by stripping newlines.
+                truncated = {k: _truncate_attr_value(v) for k, v in n["attrs"].items()}
+                console.print(f"      attrs={truncated}")
     else:
         console.print(f"  rows: {payload['num_rows']}")
         for col in payload["schema"]:

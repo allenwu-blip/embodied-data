@@ -168,11 +168,9 @@ def test_patch4_preview_does_not_claim_22_for_beta(tmp_path: Path):
     ep = tmp_path / "meta_info" / "beta_task" / "ep0"
     ep.mkdir(parents=True)
     (ep / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
-    # Beta task_info layout: list at task root. Provide a per-episode shim so
-    # preview can resolve a name (Patch 6 will exercise the list path).
-    (ep / "task_info.json").write_text(
-        json.dumps([{"episode_id": 0, "task_name": "Insert the straw"}])
-    )
+    # Use a single-dict task_info (sim layout) here so this test doesn't depend
+    # on Patch 6 (which lets preview accept the list shape).
+    (ep / "task_info.json").write_text(json.dumps({"task_name": "Insert the straw"}))
 
     result = runner.invoke(app, ["--json", "preview", str(ep)])
     assert result.exit_code == 0, result.output
@@ -197,9 +195,7 @@ def test_patch5_preview_robot_type_unknown_for_beta(tmp_path: Path):
     ep = tmp_path / "meta_info" / "beta_task" / "ep0"
     ep.mkdir(parents=True)
     (ep / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
-    (ep / "task_info.json").write_text(
-        json.dumps([{"episode_id": 0, "task_name": "Insert the straw"}])
-    )
+    (ep / "task_info.json").write_text(json.dumps({"task_name": "Insert the straw"}))
     result = runner.invoke(app, ["--json", "preview", str(ep)])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip().splitlines()[-1])
@@ -302,7 +298,7 @@ def test_patch8_inspect_includes_missing_name_attr_diagnostic():
 
 @needs_beta
 def test_patch8_inspect_human_readable_prints_attrs_line(tmp_path: Path):
-    """Non-JSON mode prints attrs lines for nodes that have them."""
+    """Non-JSON mode prints attrs lines for nodes that have them, with 80-char limit."""
     # Make a tiny h5 with a known attr so we can grep the human output.
     import h5py
 
@@ -310,7 +306,21 @@ def test_patch8_inspect_human_readable_prints_attrs_line(tmp_path: Path):
     with h5py.File(p, "w") as f:
         g = f.create_group("state/joint")
         g.attrs["name"] = ["a", "b", "c"]
+        # Long attr to exercise the 80-char per-attr truncation.
+        g.attrs["long_blob"] = "z" * 200
     result = runner.invoke(app, ["inspect", str(p)])
     assert result.exit_code == 0, result.output
     assert "attrs" in result.output
     assert "name" in result.output
+    # Truncation should keep individual attr values <= ~80 chars (allow the
+    # ellipsis and key prefix). The raw 200-char blob must NOT be present.
+    assert "z" * 200 not in result.output
+
+
+@needs_beta
+def test_patch8_inspect_beta_state_joint_attrs_visible_in_human_mode():
+    """Inspecting Beta h5 in human mode lists state/joint entry (attrs == {})."""
+    result = runner.invoke(app, ["inspect", str(BETA_H5)])
+    assert result.exit_code == 0, result.output
+    # The path /state/joint should be visible in the dump as a group.
+    assert "/state/joint" in result.output
