@@ -152,3 +152,61 @@ deferred to v0.2. Posted with audit-trail commits (one per issue):
   (variable-length `*/index` companions), #11 (validate strict-mode for
   missing videos), #13 (error suggestion text differentiation), #15 (sim
   60Hz vs 30Hz doc inconsistency).
+
+### Track 3 ✅ — C: v0.2 first feature scaffolded on draft PR
+
+Selection: **real-Beta forward conversion**. Per Allen's autonomous-sprint
+selection rule (B-driven > user-impact > issue-close), Track 2 surfaced 4
+BLOCKER + 5 HIGH bugs that all map back to the same gap — v0.1 cannot
+ingest real-robot AgiBot data. v0.1.1 shipped a refuse-and-document guard;
+v0.2 lifts that guard.
+
+Landed on `feat/v0.2-real-beta-ingest`:
+- `docs/v0.2-real-beta-ingest.md` — 1-page design (scope, schema decisions
+  including the `JOINT_14_BETA` best-guess, output 20-dim `observation.state`,
+  test plan, out-of-scope, risks).
+- `src/embodied_data/convert/agibot_beta_to_lerobot.py` — skeleton with
+  `JOINT_14_BETA` + `OBSERVATION_STATE_NAMES_20` constants. Function raises
+  `NotImplementedError` until subsequent commits implement.
+- `tests/test_convert_beta.py` — 7 tests: 2 pin schema constants + skeleton
+  refusal (passing), 5 integration tests `xfail(strict=True)` against the
+  Beta fixture (each flips green when its impl path lands).
+
+Draft PR: <https://github.com/allenwu-blip/embodied-data/pull/1>. TODO list
+in PR body covers the implementation steps; merge gated on Allen [PUBLISH].
+
+Test count: 50 → 66 passed (+16 v0.1.1 + v0.2 scaffold) + 5 xfailed.
+
+### 6h sprint final report
+
+| Track | Status | Commits | Tests Δ | Highlights |
+| --- | --- | --- | --- | --- |
+| Track 1 (post v0.1.0 issue comments) | ✅ done | 5 | 0 | #18, #124, #149, #2158 posted with audit trail |
+| Track 2 (v0.1.1 patches) | ✅ done locally + pushed | 11 (9 patches + worklog + scaffold-fix) | +14 | filename glob, refuse-Beta, 8 silent-miscompile fixes |
+| Track 3 (v0.2 scaffold) | ✅ done locally + draft PR | 1 (on feature branch) | +2 + 5 xfail | design + skeleton + draft PR #1 |
+
+**Pending [PUBLISH]**:
+- `## [Unreleased]` → `## [0.1.1]` bump + tag + GitHub release + twine upload (CHANGELOG already staged at `2877d51`).
+- v0.2 PR #1 merge (gated on TODO checklist closure + Allen review).
+
+**Pending [CRED]** (informational, not blocking):
+- AgiBotWorld-Alpha gating not approved for `allenwu06`. Beta substituted; schemas identical per upstream README. If broader Alpha coverage is needed for v0.2 acceptance testing, request access at <https://huggingface.co/datasets/agibot-world/AgiBotWorld-Alpha>.
+
+**Two biggest discoveries**:
+1. Sim DigitalWorld and real Beta diverge structurally — different filename
+   (`proprio_state{s,}` typo persistent), different joint dim (34 vs 14),
+   different timestamp dtype (`float32` sec vs `int64` ns), different state
+   subgroups (Beta has `head`/`waist`), different `task_info` shape (single
+   dict vs list of 399 dicts). v0.1's "DigitalWorld-only" framing held up
+   under audit; v0.2 makes it explicit by splitting the converter modules
+   and the schema docs.
+2. Subagent timeout pattern remains real (Sprint 1 Subagent D, Sprint 2
+   Subagent B, plus a near-miss this sprint where B.fixer's stated concern
+   surfaced a 9th patch only after Tech Lead's verification). Mitigation
+   continues to work: schema docs as durable ground truth, Tech Lead direct
+   takeover when subagents stall.
+
+**Top 3 priorities for next session**:
+1. Resolve [PUBLISH] for v0.1.1 — bump pyproject + tag + twine upload (5 min, gated on user).
+2. Implement v0.2 PR #1's TODO checklist — top of stack is `_agibot_paths` Beta layout detection + 20-dim observation builder. Each xfail test flips green incrementally.
+3. Re-attempt Alpha access (Allen requests on HF) — gives a second real-data fixture variant for v0.2 acceptance + closes the "Alpha vs Beta schemas truly identical?" question empirically.
