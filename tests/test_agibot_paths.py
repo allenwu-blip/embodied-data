@@ -29,6 +29,7 @@ from embodied_data.cli import app
 SIM_EP_DIR = Path("data/agibot_sample/meta_info/digitaltwin_3/000aa0b4-8fbe-432a-b6ae-559a7d7b3b96")
 SIM_BATCH_ROOT = Path("data/agibot_sample/meta_info")
 BETA_EP_DIR = Path("data/agibot_beta_sample/675/936938")
+BETA_H5 = BETA_EP_DIR / "proprio_stats.h5"
 
 needs_sim = pytest.mark.skipif(not SIM_EP_DIR.exists(), reason="sim fixture absent")
 needs_beta = pytest.mark.skipif(not BETA_EP_DIR.exists(), reason="beta fixture absent")
@@ -123,10 +124,17 @@ def test_schema_summary_nonexistent(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_cli_alpha_stub_error(tmp_path: Path):
-    """`embodied-data convert <alpha-path>` exits 2 with friendly Alpha stub error."""
-    alpha_dir = tmp_path / "AgiBotWorld-Alpha" / "task_x" / "ep_0"
+@needs_beta
+def test_cli_alpha_path_routes_through_beta(tmp_path: Path):
+    """As of M3 + B.1 empirical verification, Alpha schemas are equivalent to
+    Beta. The dispatcher routes ``variant=='alpha'`` paths through the Beta
+    converter with a one-line console note, instead of the v0.2-pre stub error.
+
+    Pin the routing by feeding the Beta fixture under an Alpha-named path."""
+    alpha_dir = tmp_path / "AgiBotWorld-Alpha" / "675" / "936938"
     alpha_dir.mkdir(parents=True)
+    (alpha_dir / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
+
     result = runner.invoke(
         app,
         [
@@ -139,10 +147,11 @@ def test_cli_alpha_stub_error(tmp_path: Path):
             "lerobot-v3",
         ],
     )
-    assert result.exit_code == 2, result.output
-    out = result.output.lower()
-    assert "alpha" in out
-    assert "v0.2" in out
+    assert result.exit_code == 0, result.output
+    info = json.loads((tmp_path / "out" / "meta" / "info.json").read_text())
+    assert info["robot_type"] == "agibot-beta"  # routed via Beta converter
+    assert info["features"]["observation.state"]["shape"] == [20]
+    assert "alpha" in result.output.lower()  # the routing note must be visible
 
 
 def test_cli_unknown_variant_error(tmp_path: Path):

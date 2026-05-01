@@ -142,16 +142,19 @@ def run_convert(
         variant = detect_agibot_variant(src)
 
         if variant == "alpha":
-            emit_error(
-                f"detected AgiBot Alpha layout at {src}",
-                suggestion=(
-                    "Alpha conversion is a v0.2 follow-up milestone. Alpha and Beta share "
-                    "schemas per upstream README, so once your Alpha access lands you will "
-                    "be able to use the Beta path with no code changes — track PR #1 for "
-                    "the Alpha-specific stub removal."
-                ),
-                exit_code=2,
-            )
+            # Alpha schemas were empirically verified equivalent to Beta on
+            # 2026-04-30 (Alpha task 389/episode 656913 vs Beta task 675/episode
+            # 936938 — both 14-dim joint float64, int64 ns timestamps, missing
+            # state/joint.attrs["name"], identical state/{head,waist,end,robot}
+            # subgroups). The Beta converter handles Alpha cleanly. Route alpha
+            # → beta with a single console note so the user knows.
+            if not state.json_output:
+                console.print(
+                    "[yellow]note:[/yellow] Alpha layout detected; schemas are equivalent "
+                    "to Beta per upstream README + empirical verification "
+                    "(see docs/schema/overview.md). Routing through the Beta converter."
+                )
+            variant = "beta"  # fall through to beta branch below
 
         if variant == "unknown":
             emit_error(
