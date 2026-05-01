@@ -266,3 +266,100 @@ Beta multi-episode batch (≥100 eps) needs ~150-300 LOC mirror of
    would be sharper with proper routing.
 3. **Re-attempt Alpha access** (Allen-side, ~30 sec on HF) — empirical
    confirmation of "schemas identical per upstream README".
+
+---
+
+## Sprint 4 — 2026-04-30 / 05-01 (autonomous 6h, PR #1 ready-for-review)
+
+Goal: drive PR #1 from "M1+M2 scaffold" to ready-for-review. Three tracks
+all completed within budget.
+
+### Track A ✅ — M3 Beta multi-episode batch (3 commits)
+
+- `10d820a` `feat(beta): convert_agibot_beta_batch — multi-episode + resume + workers`.
+  ~430 LOC mirroring `convert_agibot_batch`'s structure (sim) but stripped
+  for Beta — no video plumbing, one-episode-per-file inside chunk-000.
+  Includes `_BetaEpisodeSource`/`_BetaPerEpisodePayload` dataclasses,
+  `_discover_beta_episodes`, `_load_beta_episode` (worker), `_commit_beta_episode`,
+  resume helpers, multi-write helpers, `is_beta_batch_src` heuristic, and
+  failed-episode logging to `<dst>/.beta_batch_errors.jsonl`.
+- `e9ec7b2` `feat(dispatcher): route Beta task root → batch (M3 wiring)`.
+  `detect_agibot_variant` now returns `beta` for Beta task roots
+  (task_info_*.json sibling + proprio_stats.h5 in subtree). Dispatcher
+  auto-batches when src is a task root or any of `--max-episodes` /
+  `--resume` / `--workers` is set; rejects batch flags against a
+  single-episode dir with a clear hint.
+- `cb7ac6f` `test: M3 Beta batch — 10 integration tests`. 10-episode
+  smoke (synthetic via symlinks), `--max-episodes` truncation, `--resume`
+  idempotency, `--resume` fills only missing, corrupted h5 → error log,
+  workers=1 vs workers=2 stats equivalence, multi-episode validate PASS,
+  CLI dispatcher auto-routing.
+
+Tech Lead direct-implementation per the documented "no subagent for ≥150
+LOC implementation" mitigation. No timeout, no rework.
+
+### Track B ✅ — Alpha empirical verification + schema doc reorg (2 commits)
+
+- `494a700` `feat(dispatcher): route Alpha→Beta after empirical schema equivalence`.
+  Alpha access landed (allenwu06 approved). Stream-extracted Alpha task 389
+  / episode 656913 from upstream's 48 GB proprio tar (1.16 MB consumed).
+  Three-way h5 diff (Alpha vs Beta vs Sim DigitalWorld) confirms upstream
+  README's "schemas equivalent" claim: Alpha and Beta both have 14-dim
+  joint float64, missing `state/joint.attrs["name"]`, int64 ns Unix-epoch
+  timestamps, identical `state/{effector,end,head,waist,robot}` subgroups,
+  sparse `*/index` companions on action subgroups. Dispatcher's `'alpha'`
+  branch no longer stubs out — it prints a one-line "routing through Beta"
+  note and falls through to the Beta branch.
+- `413ea44` `docs(schema): reorg agibot schema by variant`. Split
+  `docs/schema-agibot.md` (DigitalWorld-only at this point) into
+  `docs/schema/{overview,digitalworld,beta}.md`. Overview includes the
+  three-way diff table + B.1 verification + variant detection ladder +
+  per-variant coverage matrix. Old `schema-agibot.md` becomes a stub
+  redirect so legacy code/test/release-notes references still work.
+
+### Track C ✅ — final tests + PR description + ready-for-review (2 commits)
+
+- `5f8082b` `test: M3 + design §5 — no-video validate + sparse index drop`.
+  Two more pinning tests:
+  - `test_batch_no_video_dataset_passes_validate`: confirms `validate`
+    handles a video-less Beta v3 (fps consistency SKIP, frame-video
+    alignment PASS via metadata proxy).
+  - `test_batch_does_not_leak_sparse_index_companions`: pins the v0.2
+    policy that Beta `action/*/index` columns are dropped on conversion
+    and never leak into `data/*.parquet` columns.
+- PR #1 description rewritten with: "What this PR delivers" (5-bullet
+  M1/M2/M3/Alpha/docs), "Try it" (six copy-paste commands covering sim,
+  Beta single, Beta batch, Alpha), "Known gaps deferred to v0.3"
+  (videos, sparse index, end-pose, reverse, joint-names override,
+  per-frame raw timestamp), TODO checklist (M1-C all checked, "Allen
+  review" + "v0.2.0 release sequence" the two open).
+- PR title: "feat: v0.2 real-Beta forward conversion (scaffold)" →
+  "feat: v0.2 real-Beta forward conversion (M1+M2+M3+Alpha+docs)".
+- `gh pr ready 1` flipped from draft → ready-for-review.
+
+### Sprint 4 final state
+
+| Commits since v0.1.1 release | 8 (5 feature + 1 doc + 2 test) |
+| Tests on `feat/v0.2-real-beta-ingest` | **98 passed + 1 skipped** |
+| Ruff | clean |
+| PR #1 | ready-for-review (no longer draft) |
+| Branch additions / deletions | +2555 / -476 |
+| Total session time | ~5h |
+
+**[PUBLISH] queue (unchanged from Sprint 3 closeout)**:
+- v0.2.0 release sequence — bump pyproject 0.1.1→0.2.0, tag v0.2.0,
+  twine upload, GitHub release per `docs/release-checklist.md`. Gated on
+  Allen review of PR #1 + merge to main.
+
+**[CRED]** — all current credentials live (HF_TOKEN with Alpha + Beta
+access; PyPI token in ~/.pypirc; `gh auth` as allenwu-blip).
+
+### Top 3 priorities for next session
+
+1. **Allen reviews PR #1** + merges to main (or asks for changes). Once
+   merged, the v0.2.0 release sequence is mechanical.
+2. **v0.2.0 release** — same 7-step `[PUBLISH]`-gated flow as v0.1.0/v0.1.1.
+3. **Pick the next v0.3 feature** from the deferred list:
+   videos / sparse index / end-pose / reverse-Beta / joint-names override.
+   Top candidate by user-impact: videos for Beta (a real Beta dataset
+   without video columns is much less useful for VLA fine-tuning).
