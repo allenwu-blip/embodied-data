@@ -5,9 +5,20 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] — 2026-04-30
 
-### Fixed (v0.1.1 candidates — pending [PUBLISH])
+Patch release. v0.1.0 was implicitly validated only against the open
+`agibot-world/AgiBotDigitalWorld` simulator. v0.1.1 hardens v0.1.0's
+AgiBot path against real-hardware **AgiBot Beta** data discovered during
+post-release fixture acquisition: filename typo (`proprio_stats.h5` vs
+`proprio_states.h5`), 14-dim joint shape (vs sim's 34-dim), int64 ns
+timestamps (vs sim's float32 sec), and a list-of-episodes `task_info_*.json`
+layout (vs sim's single-episode dict). v0.1.1 ships a refuse-and-document
+guard for forward conversion plus fixes for several silent miscompiles in
+`preview` / `validate` / `inspect`. Real-Beta forward conversion is v0.2
+work — see PR #1 for the in-progress design.
+
+### Fixed
 
 - **Filename glob** — accept both `proprio_states.h5` (DigitalWorld) and `proprio_stats.h5` (Beta) across `convert`, `validate`, `preview`. Closes silent "format unknown" failure on real Beta data.
 - **Detect-and-refuse real-robot data** — when AgiBot input has 14-joint shape or missing `state/joint.attrs["name"]`, `convert` exits with a clear "v0.1 supports DigitalWorld sim only; v0.2 roadmap covers Beta/Alpha" message instead of a raw traceback.
@@ -19,7 +30,7 @@ and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v
 
 ### Known limitations (still v0.1.x)
 
-- AgiBot Beta/Alpha real-robot **forward conversion** is not supported. Refuse-and-document is the v0.1.1 behavior; full ingest is v0.2.
+- AgiBot Beta/Alpha real-robot **forward conversion** is not supported. Refuse-and-document is the v0.1.1 behavior; full ingest is v0.2 (see [PR #1](https://github.com/allenwu-blip/embodied-data/pull/1)).
 - `validate` still treats `int64` ns timestamps as a silent PASS on monotonicity (rate inference would lie). Fixing the WARN message is v0.2.
 
 ## [0.1.0] — 2026-04-30
@@ -81,4 +92,5 @@ In-scope upstream issues addressed by v0.1.0:
 Built on top of the schemas published by the HuggingFace LeRobot team and the
 OpenDriveLab AgiBot team.
 
+[0.1.1]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.1
 [0.1.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0
