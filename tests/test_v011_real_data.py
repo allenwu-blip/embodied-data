@@ -79,34 +79,23 @@ def test_patch1_detect_format_recognizes_beta_filename(tmp_path: Path):
 
 
 @needs_beta
-def test_patch2_convert_refuses_beta_with_clean_error(tmp_path: Path):
-    """Convert exits 2 with a structured error when given real-robot Beta input.
-
-    The Beta fixture has the task_info JSON at the task-dataset root and uses
-    Beta-style filename, so we set up a temporary AgiBot-shaped tree pointing
-    at the Beta h5 to exercise the schema-detection path without modifying the
-    real fixture.
+def test_patch2_convert_routes_beta_through_beta_converter(tmp_path: Path):
+    """v0.1.1 refused Beta with a structured error. v0.2 (M2) routes Beta through
+    its own converter via ``detect_agibot_variant``. This test now pins the
+    routing: a Beta-named h5 inside any layout reaches the Beta path and the
+    convert command exits 0 with a v3 dataset on disk.
     """
-    # Build a minimal /meta_info/<task>/<uuid>/ + sibling /observations layout
-    # whose only purpose is to give convert a real source dir to chew on.
     task = "beta_real"
     uuid_ = "936938"
     ep_dir = tmp_path / "src" / "meta_info" / task / uuid_
-    obs_dir = tmp_path / "src" / "observations" / task / uuid_ / "video"
     ep_dir.mkdir(parents=True)
-    obs_dir.mkdir(parents=True)
-    # Hard-link the Beta h5 in (Beta naming).
     (ep_dir / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
-    # Also stage a task_info.json so single-episode discovery finds the dir.
-    (ep_dir / "task_info.json").write_text(json.dumps([{"episode_id": 936938, "task_name": "x"}]))
-    # Dummy 1-frame mp4 so video resolver doesn't FileNotFoundError before us.
-    (obs_dir / "head.mp4").write_bytes(b"")
 
     result = runner.invoke(
         app,
         [
             "convert",
-            str(tmp_path / "src" / "meta_info" / task / uuid_),
+            str(ep_dir),
             str(tmp_path / "out"),
             "--from",
             "agibot",
@@ -114,13 +103,11 @@ def test_patch2_convert_refuses_beta_with_clean_error(tmp_path: Path):
             "lerobot-v3",
         ],
     )
-    assert result.exit_code == 2, f"expected exit 2, got {result.exit_code}\n{result.output}"
-    output = result.output.lower()
-    assert "real-robot" in output or "v0.2" in output or "digitalworld" in output, (
-        f"error message should mention Beta refusal; got:\n{result.output}"
-    )
-    # No raw Python traceback should leak.
-    assert "traceback" not in output
+    assert result.exit_code == 0, f"expected exit 0, got {result.exit_code}\n{result.output}"
+    assert (tmp_path / "out" / "meta" / "info.json").is_file()
+    info = json.loads((tmp_path / "out" / "meta" / "info.json").read_text())
+    assert info["robot_type"] == "agibot-beta"
+    assert info["features"]["observation.state"]["shape"] == [20]
 
 
 # --------------------------------------------------------------------------- #
@@ -240,38 +227,12 @@ def test_patch6_preview_handles_task_info_list(tmp_path: Path):
 
 @needs_beta
 def test_patch7_convert_keyerror_path_emits_clean_error(tmp_path: Path):
-    """A schema-mismatch ``KeyError`` from the inner converter becomes a structured error."""
-    # Reuse Patch 2 setup — Beta refusal raises a ValueError-class structured error
-    # which must be caught by the convert/__init__.py guard, not re-raised.
-    task = "beta_real"
-    uuid_ = "936938"
-    ep_dir = tmp_path / "src" / "meta_info" / task / uuid_
-    obs_dir = tmp_path / "src" / "observations" / task / uuid_ / "video"
-    ep_dir.mkdir(parents=True)
-    obs_dir.mkdir(parents=True)
-    (ep_dir / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
-    (ep_dir / "task_info.json").write_text(json.dumps([{"episode_id": 0, "task_name": "x"}]))
-    (obs_dir / "head.mp4").write_bytes(b"")
-
-    result = runner.invoke(
-        app,
-        [
-            "convert",
-            str(ep_dir),
-            str(tmp_path / "out"),
-            "--from",
-            "agibot",
-            "--to",
-            "lerobot-v3",
-        ],
-    )
-    assert result.exit_code == 2
-    out = result.output
-    # No raw traceback frames should reach the user.
-    assert "Traceback" not in out
-    assert "rich.traceback" not in out
-    # A suggestion line should point users somewhere actionable.
-    assert "suggestion" in out.lower() or "v0.2" in out.lower()
+    """v0.1.1 tested the dispatcher's inner KeyError/ValueError wrap on Beta input.
+    v0.2 (M2) intercepts unknown variants at the top of the dispatcher via
+    ``detect_agibot_variant`` before the inner converter is reached, so the inner
+    wrap is no longer reachable from the CLI on Beta inputs. Defense-in-depth
+    coverage is now via the unknown-variant test below (Patch 9 updated)."""
+    pytest.skip("v0.1.1 KeyError path superseded by M2 dispatcher; see Patch 9")
 
 
 # --------------------------------------------------------------------------- #
@@ -327,13 +288,12 @@ def test_patch8_inspect_beta_state_joint_attrs_visible_in_human_mode():
 
 
 @needs_beta
-def test_patch9_batch_discover_refuses_beta_with_structured_error(tmp_path: Path):
-    """Batch convert against a Beta-shaped tree must refuse loudly, not silently
-    return zero episodes. _discover_episodes silently skipped Beta because the
-    sim assumes /meta_info/<task>/<uuid>/task_info.json — Beta has neither the
-    /meta_info/ prefix nor the un-suffixed task_info.json. Patch raises a
-    structured ValueError that gets wrapped into a clean exit-2 with hint."""
-    # Layout the Beta sample mirror via symlinks to avoid copying the 1.17MB h5.
+def test_patch9_batch_root_unknown_variant_emits_schema_summary(tmp_path: Path):
+    """Batch convert against a Beta task-dataset root (which has neither the sim
+    /meta_info/ subtree nor an h5 directly inside) is detected as 'unknown' by
+    M2's ``detect_agibot_variant`` and exits with a structured "schema summary"
+    error pointing at the actually-present files. v0.1.1 had this case covered
+    by silently-skipping discovery; v0.2 makes it loud and informative."""
     src = tmp_path / "beta_root" / "675" / "936938"
     src.mkdir(parents=True)
     (src / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
@@ -355,5 +315,6 @@ def test_patch9_batch_discover_refuses_beta_with_structured_error(tmp_path: Path
     )
     assert result.exit_code == 2, result.output
     out = result.output.lower()
-    assert "real-robot" in out or "beta-style" in out, result.output
-    assert "v0.1" in out or "v0.2" in out, result.output
+    assert "could not identify" in out or "unknown" in out, result.output
+    assert "schema summary" in out or "first 8 entries" in out, result.output
+    assert "Traceback" not in result.output
