@@ -163,6 +163,12 @@ def check_action_dim(path: Path, info: dict) -> CheckResult:
     )
 
 
+def _declared_video_features(info: dict) -> list[str]:
+    """Return feature keys whose dtype is ``video`` per info.features."""
+    features = info.get("features") or {}
+    return [k for k, v in features.items() if isinstance(v, dict) and v.get("dtype") == "video"]
+
+
 def check_alignment(path: Path, info: dict) -> CheckResult:
     parquets = _list_data_parquets(path)
     if not parquets:
@@ -170,6 +176,14 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
     fps = float(info.get("fps") or 0)
     if fps <= 0:
         return CheckResult("frame-video alignment", "SKIP", "info.fps missing/invalid")
+    declared = _declared_video_features(info)
+    if not declared:
+        # Info doesn't declare any video — proprio-only output, nothing to check.
+        return CheckResult(
+            "frame-video alignment",
+            "SKIP",
+            "info.features declares no video dtype (proprio-only dataset)",
+        )
     # Use episode metadata to map (episode -> mp4 path + from/to ts)
     ep_meta_files = sorted((path / "meta" / "episodes").glob("**/*.parquet"))
     if not ep_meta_files:
@@ -184,7 +198,13 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
             except Exception as e:  # noqa: BLE001
                 return CheckResult("frame-video alignment", "FAIL", f"{v.name}: {e}")
         if not videos:
-            return CheckResult("frame-video alignment", "SKIP", "no videos to align")
+            # info.features declares video (declared is non-empty by this branch)
+            # but there are no mp4s on disk — hard-fail rather than silently SKIP.
+            return CheckResult(
+                "frame-video alignment",
+                "FAIL",
+                f"info.features declares {sorted(declared)} but no mp4 files under videos/",
+            )
         # one video per episode assumption
         per_cam_frames = total_frames // max(len(videos), 1)
         if total_rows == per_cam_frames:
@@ -220,6 +240,17 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
             for n in cols
             if n.startswith("videos/") and n.endswith("/from_timestamp")
         ]
+        # Hard-fail if info.features declares a video that this episode meta
+        # didn't carry forward. Pre-v0.3 this silently passed because
+        # vid_keys was empty.
+        missing_keys = [k for k in declared if k not in vid_keys]
+        if missing_keys:
+            return CheckResult(
+                "frame-video alignment",
+                "FAIL",
+                f"{emf.name} missing videos/<key>/from_timestamp for "
+                f"declared video features: {sorted(missing_keys)}",
+            )
         for i, length in enumerate(lengths):
             n_eps += 1
             n_rows_total += int(length)
@@ -238,6 +269,18 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
                     issues.append(
                         f"ep{ep_idx[i]} {vk}: rows={length} (={expected_dur:.3f}s) "
                         f"vs ts span {actual_dur:.3f}s (>1 frame off)"
+                    )
+                # Cross-check the on-disk video frame count against length.
+                try:
+                    with av.open(str(vp)) as c:
+                        frames = int(c.streams.video[0].frames)
+                except Exception as e:  # noqa: BLE001
+                    issues.append(f"ep{ep_idx[i]} {vk}: cannot decode {vp.name} ({e})")
+                    continue
+                if frames > 0 and abs(frames - int(length)) > 1:
+                    issues.append(
+                        f"ep{ep_idx[i]} {vk}: video frames={frames} "
+                        f"vs episode length={length} (>1 frame off)"
                     )
     if issues:
         return CheckResult(
