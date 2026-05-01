@@ -432,6 +432,7 @@ class _BetaEpisodeSource:
     episode_id: str  # e.g. '936938'
     h5_path: Path
     task_info_path: Path  # canonical: <root>/task_info_<task>.json
+    head_video_src: Path | None = None  # <ep_dir>/videos/head_color.mp4 if present
 
     @property
     def key(self) -> tuple[str, str]:
@@ -446,6 +447,7 @@ class _BetaPerEpisodePayload:
     action_20: np.ndarray
     task_name: str
     n_frames: int
+    video_meta: VideoMetadata | None = None
 
 
 def is_beta_batch_src(src: Path) -> bool:
@@ -490,6 +492,7 @@ def _discover_beta_episodes(src: Path) -> list[_BetaEpisodeSource]:
                 episode_id=episode_id,
                 h5_path=h5,
                 task_info_path=task_info_path,
+                head_video_src=find_head_color_video(ep_dir),
             )
         )
     return out
@@ -513,15 +516,25 @@ def _resolve_task_name_from_file(task_info_path: Path) -> str:
 
 
 def _load_beta_episode(src_ep: _BetaEpisodeSource) -> _BetaPerEpisodePayload:
-    """Worker: read one Beta episode's h5 + task_info into a payload."""
+    """Worker: read one Beta episode's h5 + task_info into a payload.
+
+    Probes the upstream video header (no decode) to capture
+    fps/dimensions/frame count cheaply; the actual re-encode runs in the
+    main process so PyAV never crosses a fork boundary.
+    """
     state_20, n_frames = _read_beta_state(src_ep.h5_path)
     action_20 = _first_diff(state_20)
     task_name = _resolve_task_name_from_file(src_ep.task_info_path)
+    video_meta: VideoMetadata | None = None
+    if src_ep.head_video_src is not None and src_ep.head_video_src.is_file():
+        video_meta = probe_video(src_ep.head_video_src)
+        _assert_video_aligned_with_proprio(video_meta, n_frames)
     return _BetaPerEpisodePayload(
         state_20=state_20,
         action_20=action_20,
         task_name=task_name,
         n_frames=n_frames,
+        video_meta=video_meta,
     )
 
 
@@ -535,11 +548,17 @@ def _commit_beta_episode(
     uuid_map_rows: list[dict],
     state_chunks: list[np.ndarray],
     action_chunks: list[np.ndarray],
+    dataset_with_video: bool = False,
 ) -> int:
-    """Write one episode's data + episode-meta parquet rows. Returns next ep idx.
+    """Write one episode's data + episode-meta parquet rows (+ video if any).
 
-    Beta has no videos and ships small parquets, so we use one-episode-per-file
-    naming inside chunk-000 (file-NNN.parquet) and never roll the chunk dir.
+    One episode per parquet file (and per video file) inside ``chunk-000``;
+    Beta ships small parquets so we never roll the chunk dir. When
+    ``dataset_with_video`` is True, ``payload.video_meta`` must be set —
+    the upstream mp4 is re-encoded in the main process to
+    ``videos/<key>/chunk-000/file-NNN.mp4`` and per-episode video columns
+    are emitted alongside the rest of the episode meta. When False,
+    legacy v0.2 proprio-only output is written.
     """
     if payload.task_name not in task_to_index:
         task_to_index[payload.task_name] = len(task_to_index)
@@ -555,6 +574,22 @@ def _commit_beta_episode(
     global_index_arr = np.arange(
         dataset_from_index, dataset_from_index + payload.n_frames, dtype=np.int64
     )
+
+    # Re-encode video FIRST so that a missing/broken upstream mp4 fails the
+    # commit before any state-laden parquets are written. This keeps data/
+    # and meta/episodes/ in sync even on partial-failure batches.
+    encoded_video_n_frames: int | None = None
+    if dataset_with_video:
+        if src_ep.head_video_src is None or payload.video_meta is None:
+            raise FileNotFoundError(
+                f"dataset declares head_color but episode {src_ep.task}/{src_ep.episode_id} "
+                "has no upstream videos/head_color.mp4"
+            )
+        video_dir = dst / "videos" / HEAD_CAMERA_KEY / "chunk-000"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        video_dst = video_dir / f"file-{file_index:03d}.mp4"
+        reencode_video(src_ep.head_video_src, video_dst, fps=FPS)
+        encoded_video_n_frames = count_reencoded_frames(video_dst)
 
     data_dir = dst / "data" / "chunk-000"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -577,7 +612,7 @@ def _commit_beta_episode(
     ep_meta_path = ep_meta_dir / f"file-{file_index:03d}.parquet"
     s_state = _stats(payload.state_20)
     s_action = _stats(payload.action_20)
-    row = {
+    row: dict = {
         "episode_index": [episode_index],
         "tasks": [[payload.task_name]],
         "length": [int(payload.n_frames)],
@@ -598,6 +633,12 @@ def _commit_beta_episode(
         "stats/action/std": [s_action["std"]],
         "stats/action/count": [s_action["count"]],
     }
+    if encoded_video_n_frames is not None:
+        duration = encoded_video_n_frames / float(FPS)
+        row[f"videos/{HEAD_CAMERA_KEY}/chunk_index"] = [0]
+        row[f"videos/{HEAD_CAMERA_KEY}/file_index"] = [file_index]
+        row[f"videos/{HEAD_CAMERA_KEY}/from_timestamp"] = [0.0]
+        row[f"videos/{HEAD_CAMERA_KEY}/to_timestamp"] = [float(duration)]
     pq.write_table(pa.Table.from_pydict(row), ep_meta_path)
 
     state_chunks.append(payload.state_20)
@@ -727,7 +768,27 @@ def _write_beta_info_json_multi(
     total_episodes: int,
     total_frames: int,
     total_tasks: int,
+    video_meta: VideoMetadata | None = None,
 ) -> None:
+    features: dict = {
+        "observation.state": {
+            "dtype": "float32",
+            "shape": [20],
+            "names": list(OBSERVATION_STATE_NAMES_20),
+        },
+        "action": {
+            "dtype": "float32",
+            "shape": [20],
+            "names": list(OBSERVATION_STATE_NAMES_20),
+        },
+        "timestamp": {"dtype": "float32", "shape": [1], "names": None},
+        "frame_index": {"dtype": "int64", "shape": [1], "names": None},
+        "episode_index": {"dtype": "int64", "shape": [1], "names": None},
+        "index": {"dtype": "int64", "shape": [1], "names": None},
+        "task_index": {"dtype": "int64", "shape": [1], "names": None},
+    }
+    if video_meta is not None:
+        features[HEAD_CAMERA_KEY] = _video_feature_dict(video_meta.width, video_meta.height)
     info = {
         "codebase_version": CODEBASE_VERSION,
         "fps": FPS,
@@ -737,29 +798,29 @@ def _write_beta_info_json_multi(
         "total_tasks": int(total_tasks),
         "chunks_size": 1000,
         "data_files_size_in_mb": 100,
-        "video_files_size_in_mb": 200,
+        "video_files_size_in_mb": VIDEO_FILE_SIZE_MB,
         "data_path": "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet",
-        "video_path": None,
+        "video_path": (
+            "videos/{video_key}/chunk-{chunk_index:03d}/file-{file_index:03d}.mp4"
+            if video_meta is not None
+            else None
+        ),
         "splits": {"train": f"0:{total_frames}"},
-        "features": {
-            "observation.state": {
-                "dtype": "float32",
-                "shape": [20],
-                "names": list(OBSERVATION_STATE_NAMES_20),
-            },
-            "action": {
-                "dtype": "float32",
-                "shape": [20],
-                "names": list(OBSERVATION_STATE_NAMES_20),
-            },
-            "timestamp": {"dtype": "float32", "shape": [1], "names": None},
-            "frame_index": {"dtype": "int64", "shape": [1], "names": None},
-            "episode_index": {"dtype": "int64", "shape": [1], "names": None},
-            "index": {"dtype": "int64", "shape": [1], "names": None},
-            "task_index": {"dtype": "int64", "shape": [1], "names": None},
-        },
+        "features": features,
     }
     (dst / "meta" / "info.json").write_text(json.dumps(info, indent=2))
+
+
+def _resume_video_meta(dst: Path) -> VideoMetadata | None:
+    """Recover dataset video metadata from a prior batch run, or None if it was
+    a proprio-only dataset. Reads the first emitted video file's headers."""
+    video_dir = dst / "videos" / HEAD_CAMERA_KEY / "chunk-000"
+    if not video_dir.is_dir():
+        return None
+    mp4s = sorted(video_dir.glob("file-*.mp4"))
+    if not mp4s:
+        return None
+    return probe_video(mp4s[0])
 
 
 def _finalize_beta_aggregates(dst: Path) -> None:
@@ -775,6 +836,7 @@ def _finalize_beta_aggregates(dst: Path) -> None:
         total_episodes=len(state_chunks),
         total_frames=total_frames,
         total_tasks=len(task_to_index),
+        video_meta=_resume_video_meta(dst),
     )
 
 
@@ -835,6 +897,17 @@ def convert_agibot_beta_batch(
     (dst / "meta" / "episodes" / "chunk-000").mkdir(parents=True, exist_ok=True)
     (dst / "data" / "chunk-000").mkdir(parents=True, exist_ok=True)
 
+    # All-or-nothing per dataset: if ANY pending or already-committed episode has
+    # a head_color video, the dataset declares the video feature; episodes
+    # missing the upstream mp4 are then logged + skipped via the standard error
+    # path. If NO episode has video, the dataset is proprio-only (legacy v0.2).
+    resume_video_meta = _resume_video_meta(dst) if resume else None
+    pending_with_video = [s for s in pending if s.head_video_src is not None]
+    dataset_with_video = bool(resume_video_meta) or bool(pending_with_video)
+    dataset_video_meta: VideoMetadata | None = resume_video_meta
+    if dataset_with_video and dataset_video_meta is None and pending_with_video:
+        dataset_video_meta = probe_video(pending_with_video[0].head_video_src)  # type: ignore[arg-type]
+
     state_chunks: list[np.ndarray] = []
     action_chunks: list[np.ndarray] = []
     if resume:
@@ -873,8 +946,23 @@ def convert_agibot_beta_batch(
             uuid_map_rows=uuid_map_rows,
             state_chunks=state_chunks,
             action_chunks=action_chunks,
+            dataset_with_video=dataset_with_video,
         )
         succeeded += 1
+
+    def log_failure(src_ep: _BetaEpisodeSource, exc: BaseException) -> None:
+        nonlocal failed
+        failed += 1
+        _append_jsonl(
+            error_log_path,
+            {
+                "task": src_ep.task,
+                "episode_id": src_ep.episode_id,
+                "h5_path": str(src_ep.h5_path),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
 
     with progress:
         if workers <= 1:
@@ -885,20 +973,13 @@ def convert_agibot_beta_batch(
                 try:
                     payload = _load_beta_episode(src_ep)
                 except (OSError, KeyError, ValueError) as exc:
-                    failed += 1
-                    _append_jsonl(
-                        error_log_path,
-                        {
-                            "task": src_ep.task,
-                            "episode_id": src_ep.episode_id,
-                            "h5_path": str(src_ep.h5_path),
-                            "error_type": type(exc).__name__,
-                            "error": str(exc),
-                        },
-                    )
+                    log_failure(src_ep, exc)
                     progress.update(task_id, advance=1)
                     continue
-                commit_one(src_ep, payload)
+                try:
+                    commit_one(src_ep, payload)
+                except (OSError, ValueError) as exc:
+                    log_failure(src_ep, exc)
                 progress.update(task_id, advance=1)
         else:
             with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -911,20 +992,13 @@ def convert_agibot_beta_batch(
                     try:
                         payload = fut.result()
                     except (OSError, KeyError, ValueError) as exc:
-                        failed += 1
-                        _append_jsonl(
-                            error_log_path,
-                            {
-                                "task": src_ep.task,
-                                "episode_id": src_ep.episode_id,
-                                "h5_path": str(src_ep.h5_path),
-                                "error_type": type(exc).__name__,
-                                "error": str(exc),
-                            },
-                        )
+                        log_failure(src_ep, exc)
                         progress.update(task_id, advance=1)
                         continue
-                    commit_one(src_ep, payload)
+                    try:
+                        commit_one(src_ep, payload)
+                    except (OSError, ValueError) as exc:
+                        log_failure(src_ep, exc)
                     progress.update(task_id, advance=1)
 
     _write_beta_tasks_parquet_multi(dst, task_to_index)
@@ -937,6 +1011,7 @@ def convert_agibot_beta_batch(
         total_episodes=next_episode_index,
         total_frames=total_frames_written,
         total_tasks=len(task_to_index),
+        video_meta=dataset_video_meta,
     )
 
     summary = (
