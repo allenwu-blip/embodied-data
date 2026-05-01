@@ -68,8 +68,8 @@ Concrete upstream issues this project addresses or works around:
 
 ## Roadmap
 
-- **v0.2.x patches** — single-episode task-name resolution, doc polish (see [`docs/v0.2.x-patches.md`](docs/v0.2.x-patches.md)).
-- **v0.3** — video stream metadata, sparse episode index, end-effector pose channels.
+- **v0.3 (shipped on `main`, awaiting tag)** — `observation.images.head_color` video for Beta / Alpha (single + batch) so v3 datasets are usable for VLA training end-to-end.
+- **v0.3.x patches** — multi-camera (fisheye / hand / back), sparse `action/*/index` masks, end-pose flattening, reverse Beta path (see [`docs/v0.3.x-patches.md`](docs/v0.3.x-patches.md)).
 - **v0.4+** — ALOHA HDF5 ingest, RLDS export, OpenX Embodiment alignment.
 
 Cross-embodiment action-space retargeting and Chinese prompt embedding remain explicit non-goals.
@@ -101,8 +101,8 @@ uv run pytest
 
 ## Coverage
 
-- 48 commits, 3 PyPI releases (0.1.0 / 0.1.1 / 0.2.0)
-- 98 passing tests + 1 skipped (gated dataset)
+- 56 commits, 3 PyPI releases (0.1.0 / 0.1.1 / 0.2.0); v0.3 staged on `main`
+- 114 passing tests + 1 skipped (gated dataset)
 - 4 upstream issue threads engaged
 - 4 HuggingFace datasets exercised end-to-end (lerobot/pusht, AgiBotWorld-Beta, AgiBotWorld-Alpha, agibot-world/agibot_digital_world)
 

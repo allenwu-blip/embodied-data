@@ -424,3 +424,57 @@ focused converter + validator, OSS-first, leverage Claude Code throughput.
 **Standing [CRED]**: all live (HF token with Alpha + Beta + DigitalWorld access, PyPI token in `~/.pypirc`, `gh auth` as `allenwu-blip`).
 
 Next sprint direction is Allen-defined; no Tech Lead carry-over.
+
+---
+
+## Sprint 6 closeout — v0.3.0 head_color video (2026-05-01)
+
+**Sprint goal**: ship `observation.images.head_color` for Beta single + batch so that LeRobot v3 datasets emitted by `embodied-data convert` are usable for VLA fine-tuning end-to-end. Other cameras and unrelated v0.3.x candidates strictly out of scope.
+
+**Why it mattered**: v0.2.0 release notes' first Known Limitation — "Videos for Beta. v0.2 emits `video_path: null`" — was the largest user-facing blocker. Any lab seriously trialing the converter would notice the missing video on first run and bounce. v0.3 fixes that one thing.
+
+**Track A — implementation (5 commits)**:
+
+| Commit | Subject |
+| --- | --- |
+| `df1e7a0` | refactor(video): extract reencode_video + probe_video to shared `_video.py` |
+| `56758ad` | feat(beta): emit `observation.images.head_color` video on single-episode convert |
+| `d22c377` | feat(beta): emit head_color video on multi-episode batch convert |
+| `accf03b` | feat(validate): hard-fail when declared video is missing or broken |
+| `6d39707` | test(video): integration + unit + negative tests for Beta head_color pipeline |
+
+**Track B — docs (1 commit)**: `7e29024` — CHANGELOG `## [Unreleased]` section, `docs/schema/beta.md` §10 video appendix, `docs/v0.3.x-patches.md` backlog file (multi-camera / sparse index / end-pose / reverse Beta), `scripts/fetch_beta_video_fixture.py` for reproducible test fixture acquisition.
+
+**Track C — closeout (this commit)**: README Roadmap "v0.3 next" → "v0.3 shipped on `main`, awaiting tag", coverage block bumped 48 → 57 commits / 98 → 114 tests, this WORKLOG entry.
+
+**Pytest**: 98 passed + 1 skipped → **114 passed + 1 skipped**, all green; ruff clean; v0.3.0 release flow not run (deliberately deferred — release decision is Allen's [PUBLISH] gate).
+
+**Fixture acquisition decision**: Allen authorized a three-step descent ladder (stream-extract Beta → Alpha fallback → synthetic). Path 1 partially worked: `head_color.mp4` (8 MB, av1) stream-extracted cleanly via HTTP Range against `observations/675/880749-912853.tar` (36 GB tar, ~8 MB downloaded, ~10 s). Path 1 stalled on proprio: episode 882736's `proprio_stats.h5` lives in a 48 GB tar with non-numerically-sorted task blocks; HfFileSystem streaming hit ~3.5 entries/sec and didn't reach task 675 in the budgeted window. Decision: **real upstream video + 879-frame slice of the existing 936938 proprio for the proprio companion** (real schema, real Beta values, sliced to match video length). Path 2 (Alpha) and Path 3 (synthetic mp4) were not used. Documented explicitly in `scripts/fetch_beta_video_fixture.py` so the choice is reproducible and auditable.
+
+**Critical design choice — video-before-data commit ordering**: original implementation wrote the per-episode parquet first, then re-encoded video, then wrote episode meta. End-to-end test on a mixed batch (1 episode with video + 1 without) revealed an orphaned `data/file-001.parquet` for the video-failed episode. Re-ordered commit to encode video FIRST so a missing/broken upstream mp4 fails the commit before any state-laden parquets land. Verified: failed episode produces zero on-disk state, succeeded episode stays clean, validate passes.
+
+**Validate hard-fail update**: pre-v0.3, when `info.features` declared a video feature but episode-meta parquets lacked the corresponding `videos/<key>/from_timestamp` columns, the alignment check silently PASSed because the inner per-episode loop's `vid_keys` was empty. Tightened to four explicit FAIL paths: missing mp4 file on disk, missing episode-meta video columns, codec decode error, frame-count divergence >1 frame. Proprio-only output (no `dtype: video` in features) still SKIPs cleanly.
+
+**No subagent timeouts this sprint**. Tech Lead direct implementation throughout per durable Sprint 1-3 lesson — Beta video integration was ~250+ LOC across 3 files, well above the ~150 LOC subagent-timeout threshold. Tests (340 LOC) could have been a subagent dispatch but were also Tech Lead direct since the pattern was small and the Track A implementation was already in-context.
+
+**Sprint metrics (cumulative through Sprint 6)**:
+
+| Maxim | Was (v0.2.0 GA) | Now (v0.3.0 staged) |
+| --- | --- | --- |
+| Commits on main | 48 | **57** |
+| PyPI releases | 3 (0.1.0/0.1.1/0.2.0) | 3 (v0.3.0 staged in `## [Unreleased]`) |
+| Tests passing | 98 + 1 skipped | **114 + 1 skipped** (+16) |
+| HF datasets exercised | 4 | 4 (same — Beta video re-uses existing access) |
+| Sprints | 5 | 6 |
+
+**Standing [PUBLISH] queue**: 1 item — v0.3.0 release sequence (CHANGELOG → bump version → tag → twine → `gh release`). Staged in `## [Unreleased]`, awaits Allen's manual trigger per the v0.1.0 / v0.1.1 / v0.2.0 pattern.
+
+**Standing [CRED]**: all live (no rotation needed since v0.2.0).
+
+**Reminder for Allen** — v0.3.0 ship was the milestone Allen pre-committed to as the cowork distribution-timing recheck point. When v0.3.0 is tagged, that conversation should be reopened (which channels to push, which upstream issue threads to update, whether any current "no external distribution" guardrails should lift).
+
+**Next sprint candidates (top 3, Allen-decided priority)**:
+
+1. **v0.3.1 multi-camera** — fisheye / hand / back. Same h264 contract per camera, generalize `find_head_color_video` → `find_camera_videos(ep_dir) -> dict[str, Path]`. Largest single user-facing gap remaining for VLA training.
+2. **v0.3.2 sparse `*/index` masks** as `auxiliary.<group>.mask` features. Smaller surface; relevant for imitation-learning pipelines that need teleoperator-active timesteps.
+3. **Real-user feedback channel**. v0.3.0 makes the converter usable end-to-end; the next pipeline-rate-limiter is whether labs are actually trying it. Options: lurk Discord/Slack robotics communities, post a "v0.3.0 real video" comment on the upstream issue threads we're already on, or ask UMich Robotics labs directly.
