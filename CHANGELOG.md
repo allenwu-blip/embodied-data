@@ -5,6 +5,85 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-04-30
+
+Minor release. Adds first-class support for real-hardware AgiBot captures
+(`agibot-world/AgiBotWorld-Beta`, also `agibot-world/AgiBotWorld-Alpha` per
+empirical schema equivalence) on top of v0.1.x's sim-only DigitalWorld
+pipeline. CLI surface unchanged — the `convert` command auto-detects the
+variant via `detect_agibot_variant` and routes to the right converter.
+
+### Added
+
+- **Beta single-episode forward conversion** — `convert_agibot_beta_to_lerobot_v3`
+  reads 14 joints + 2-dim effector + 2-dim head + 2-dim waist into a 20-dim
+  `observation.state`, computes first-difference action, recomputes
+  `frame_index/30` timestamps (Beta's `int64` ns Unix-epoch column is
+  intentionally discarded per LeRobot v3 invariant), and resolves task name
+  from Beta's `task_info_<task>.json` list-of-episodes layout. No videos
+  in this first cut (the Beta sample we hold ships proprio + metadata only).
+- **Beta multi-episode batch** — `convert_agibot_beta_batch` mirrors the
+  sim batch's structure: `--max-episodes`, `--resume` (UUID-keyed,
+  idempotent via `meta/extra/uuid_map.parquet`), `--workers`
+  (`ProcessPoolExecutor` on h5 reads, single-process commit). Failed
+  episodes log to `<dst>/.beta_batch_errors.jsonl` and the run continues.
+- **Schema-detect dispatcher** — `embodied_data._agibot_paths.detect_agibot_variant`
+  returns `digitalworld | beta | alpha | unknown`. The `convert` command
+  uses this to auto-route: sim DigitalWorld → existing pipeline (unchanged);
+  Beta single-episode dir or task root → Beta path (auto-batches when src
+  is a task root or batch flags are set); Alpha-named path → Beta path with
+  a one-line console note. Unknown layouts emit a structured error with a
+  `schema_summary` of what was actually found.
+- **Schema reference docs reorged per variant** — `docs/schema/`:
+  `overview.md` (variant detection rules + Alpha ≡ Beta empirical finding +
+  per-variant coverage matrix), `digitalworld.md` (sim variant — content
+  from the former monolithic `schema-agibot.md`), `beta.md` (Beta + Alpha
+  reference). The pre-v0.2 `docs/schema-agibot.md` is kept as a stub
+  redirect for legacy references.
+
+### Changed
+
+- **Alpha is no longer refused.** v0.1.1's "v0.2 follow-up milestone" stub
+  error is replaced with auto-routing through the Beta converter.
+  Equivalence verified empirically on 2026-04-30 (Alpha task 389/episode
+  656913 vs Beta task 675/episode 936938 head-to-head h5 diff): identical
+  joint shape `(N, 14)`, identical missing `state/joint.attrs["name"]`,
+  identical `int64` ns timestamps, identical state subgroup set.
+
+### Known limitations (deferred to v0.3+)
+
+- **Videos** for Beta/Alpha. v0.2 emits `video_path: null`. Video ingest
+  needs separate fixture acquisition (per-episode tars upstream are several
+  GB).
+- **Sparse `action/*/index` companions** (Beta has these for `joint`,
+  `effector`, `end`, `robot`, `head`, `waist`). v0.2 drops them silently;
+  v0.3 will surface as `auxiliary.*.mask` features.
+- **`state/end/*` end-pose flattening** into `observation.state.end_pose`
+  (32-dim) — v0.2.x candidate if user demand surfaces.
+- **Reverse `lerobot-v3 → agibot-beta`** — single-episode reverse for sim
+  is in v0.1; Beta-flavoured reverse is v0.3.
+- **`--joint-names <file.json>` override** for users whose Beta task has
+  different joint ordering than `JOINT_14_BETA = [arm_l_j1..7, arm_r_j1..7]`
+  (v0.2's best-guess constant — see `docs/schema/beta.md` §7).
+- **Per-frame raw timestamp preservation** under `auxiliary.timestamp_raw`
+  (v0.2 discards Beta's `int64` ns column in favour of LeRobot v3's
+  `frame_index/fps` invariant).
+
+### Test count
+
+- Sprint 3 closeout (v0.1.1 GA): 64 passed
+- Post-M1 (Beta single-episode): 71 passed
+- Post-M2 (dispatcher): 86 passed + 1 skipped
+- Post-M3 (Beta batch): 96 passed + 1 skipped
+- Post-Alpha verification + schema reorg + design §5 tests: **98 passed + 1 skipped**
+
+### Acknowledgments
+
+Built on top of the schemas published by the HuggingFace LeRobot team and
+the OpenDriveLab AgiBot team. Empirical Alpha access made the
+"schemas equivalent per upstream README" claim verifiable rather than
+assumed.
+
 ## [0.1.1] — 2026-04-30
 
 Patch release. v0.1.0 was implicitly validated only against the open
@@ -92,5 +171,6 @@ In-scope upstream issues addressed by v0.1.0:
 Built on top of the schemas published by the HuggingFace LeRobot team and the
 OpenDriveLab AgiBot team.
 
+[0.2.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.2.0
 [0.1.1]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.1
 [0.1.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0
