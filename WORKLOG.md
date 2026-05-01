@@ -210,3 +210,59 @@ Test count: 50 → 66 passed (+16 v0.1.1 + v0.2 scaffold) + 5 xfailed.
 1. Resolve [PUBLISH] for v0.1.1 — bump pyproject + tag + twine upload (5 min, gated on user).
 2. Implement v0.2 PR #1's TODO checklist — top of stack is `_agibot_paths` Beta layout detection + 20-dim observation builder. Each xfail test flips green incrementally.
 3. Re-attempt Alpha access (Allen requests on HF) — gives a second real-data fixture variant for v0.2 acceptance + closes the "Alpha vs Beta schemas truly identical?" question empirically.
+
+---
+
+## v0.1.1 release + v0.2 PR #1 M1+M2 — 2026-04-30 (continuation)
+
+### v0.1.1 GA ✅
+
+Allen batch-approved the v0.1.1 7-step release flow. Sequence executed identically to v0.1.0:
+- `## [Unreleased]` → `## [0.1.1]` rename + bump pyproject 0.1.0→0.1.1
+- commit `ae3bb05` "chore: release v0.1.1 — sim/real-Beta compatibility patches"
+- tag `v0.1.1` (annotated, single-line message), pushed
+- tag CI run drift guard `version=0.1.1 tag=v0.1.1 match=true`
+- draft GitHub release with prelude differential + CHANGELOG `[0.1.1]` body
+- `rm -rf dist/ && uv build && twine check && twine upload && draft=false`
+- PyPI live: <https://pypi.org/project/embodied-data/0.1.1/>
+- GitHub release public: <https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.1>
+
+CDN sync took ~70s; pip download fetched 38KB wheel byte-identical to local.
+
+### v0.2 PR #1 — M1 + M2 landed on `feat/v0.2-real-beta-ingest`
+
+**M1 ✅** — `feat(beta): convert AgiBot Beta single-episode → LeRobot v3` (`050579e`).
+First v0.2 happy path. 14-dim joint + 2-dim effector + 2-dim head + 2-dim
+waist → 20-dim `observation.state`; first-difference action; recomputed
+`frame_index/30` timestamps; `task_info_<task>.json` list resolution at task
+root; complete v3 dataset (no videos). All five xfail-pinned integration
+tests flipped to passing.
+
+**M2 ✅** — `feat(dispatcher): detect_agibot_variant routes sim vs Beta vs Alpha-stub`
+(`b336972`). Adds `detect_agibot_variant(path) → {digitalworld, beta, alpha,
+unknown}` + `schema_summary(path)` to `_agibot_paths.py`. Router in
+`convert/__init__.py`: digitalworld → sim path; beta → Beta converter
+(rejects batch flags — Beta batch is M3); alpha → friendly stub error
+referencing PR #1; unknown → schema_summary in error. Two v0.1.1 patch
+tests updated, one (Patch 7) explicitly skipped as superseded.
+
+**Test count progression** on `feat/v0.2-real-beta-ingest`:
+- Sprint 3 closeout: 66 passed + 5 xfailed
+- Post-M1: 71 passed
+- Post-M2: 86 passed + 1 skipped
+
+### M3 deferred (next session)
+
+Beta multi-episode batch (≥100 eps) needs ~150-300 LOC mirror of
+`convert_agibot_batch`'s loop. Single-process happy path first cut.
+
+### Top 3 priorities for next session (updated)
+
+1. **M3 Beta batch** — primary v0.2 deliverable still outstanding. Real Beta
+   tasks ship 100-400 episodes; without batch, M1's single-episode CLI is
+   too narrow for v0.2 release notes.
+2. **Schema doc reorg** — split `docs/schema-agibot.md` →
+   `schema-agibot-{digitalworld,beta,overview}.md`. M2's friendly errors
+   would be sharper with proper routing.
+3. **Re-attempt Alpha access** (Allen-side, ~30 sec on HF) — empirical
+   confirmation of "schemas identical per upstream README".
