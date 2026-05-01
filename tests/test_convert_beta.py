@@ -43,21 +43,20 @@ def test_module_constants():
     assert OBSERVATION_STATE_NAMES_20[:14] == JOINT_14_BETA
 
 
-def test_skeleton_raises_until_impl_lands():
-    """Until the real converter ships, the skeleton must refuse loudly."""
-    with pytest.raises(NotImplementedError, match="v0.2 WIP"):
+def test_missing_src_raises():
+    """Bad src path raises FileNotFoundError (not NotImplementedError post-impl)."""
+    with pytest.raises(FileNotFoundError, match="proprio_stat"):
         convert_agibot_beta_to_lerobot_v3(src=Path("/nope"), dst=Path("/nope"))
 
 
 # ---------------------------------------------------------------------------
-# Below: real-Beta integration tests. Marked xfail until impl lands. Each test
-# documents what the implementation must produce. Strip the @pytest.mark.xfail
-# decorator the moment the corresponding code path goes green.
+# Real-Beta integration tests. v0.2 first-cut implementation has landed —
+# all five flip from xfail(strict=True) → passing assertions. Each pins a
+# distinct behavioral guarantee against the Beta fixture.
 # ---------------------------------------------------------------------------
 
 
 @needs_beta
-@pytest.mark.xfail(strict=True, reason="v0.2 WIP — converter skeleton only")
 def test_beta_single_episode_smoke(tmp_path: Path):
     """Beta single-episode → produces meta/info.json + data parquet on disk."""
     convert_agibot_beta_to_lerobot_v3(src=BETA_H5.parent, dst=tmp_path / "v3")
@@ -66,7 +65,6 @@ def test_beta_single_episode_smoke(tmp_path: Path):
 
 
 @needs_beta
-@pytest.mark.xfail(strict=True, reason="v0.2 WIP")
 def test_beta_state_dim_20(tmp_path: Path):
     """Output observation.state is 20-dim per design §3."""
     import json
@@ -77,7 +75,6 @@ def test_beta_state_dim_20(tmp_path: Path):
 
 
 @needs_beta
-@pytest.mark.xfail(strict=True, reason="v0.2 WIP")
 def test_beta_timestamp_ns_to_s(tmp_path: Path):
     """Beta /timestamp int64 ns must convert to float32 seconds in parquet."""
     import pyarrow.parquet as pq
@@ -91,7 +88,6 @@ def test_beta_timestamp_ns_to_s(tmp_path: Path):
 
 
 @needs_beta
-@pytest.mark.xfail(strict=True, reason="v0.2 WIP")
 def test_beta_action_first_diff(tmp_path: Path):
     """action[i] = state[i+1] - state[i] for i in [0, N-2], pad last frame."""
     import numpy as np
@@ -107,7 +103,6 @@ def test_beta_action_first_diff(tmp_path: Path):
 
 
 @needs_beta
-@pytest.mark.xfail(strict=True, reason="v0.2 WIP")
 def test_beta_validate_passes(tmp_path: Path):
     """The Beta-converted v3 dataset passes embodied-data validate."""
     from typer.testing import CliRunner
