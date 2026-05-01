@@ -165,30 +165,59 @@ def run_convert(
             )
 
         if variant == "beta":
+            from embodied_data._agibot_paths import find_proprio_h5
             from embodied_data.convert.agibot_beta_to_lerobot import (
+                convert_agibot_beta_batch,
                 convert_agibot_beta_to_lerobot_v3,
+                is_beta_batch_src,
             )
 
-            if max_episodes is not None or resume or workers > 1:
+            # Auto-batch when src is a Beta task root or any of the batch flags
+            # are set. Single-episode otherwise.
+            beta_batch = max_episodes is not None or resume or workers > 1 or is_beta_batch_src(src)
+            if beta_batch and find_proprio_h5(src) is not None:
                 emit_error(
-                    "AgiBot Beta multi-episode batch is not yet supported in v0.2",
+                    f"--max-episodes / --resume / --workers given but {src} looks like "
+                    "a single-episode dir (has proprio_stats.h5 directly inside)",
                     suggestion=(
-                        "run without --max-episodes / --resume / --workers; "
-                        "Beta batch is the next milestone in PR #1"
+                        "for batch mode, point at the Beta task-dataset root containing "
+                        "<task>/<ep_id>/proprio_stats.h5 + task_info_<task>.json"
                     ),
+                    exit_code=2,
+                )
+
+            if (
+                resume
+                and beta_batch
+                and not (dst / "meta" / "extra" / "uuid_map.parquet").is_file()
+            ):
+                uuid_map_path = dst / "meta" / "extra" / "uuid_map.parquet"
+                emit_error(
+                    f"--resume requested but no resume state found at {uuid_map_path}",
+                    suggestion="run without --resume for the first conversion",
                     exit_code=2,
                 )
 
             t0 = time.monotonic()
             try:
                 with _silence_for_json():
-                    convert_agibot_beta_to_lerobot_v3(src=src, dst=dst)
+                    if beta_batch:
+                        convert_agibot_beta_batch(
+                            src=src,
+                            dst=dst,
+                            max_episodes=max_episodes,
+                            resume=resume,
+                            workers=workers,
+                        )
+                    else:
+                        convert_agibot_beta_to_lerobot_v3(src=src, dst=dst)
             except FileNotFoundError as exc:
                 emit_error(
                     str(exc),
                     suggestion=(
-                        "Beta layout expects proprio_stats.h5 inside the episode dir + "
-                        "task_info_<task>.json at the task root one level up"
+                        "Beta single-episode expects proprio_stats.h5 inside the episode "
+                        "dir + task_info_<task>.json at the task root; Beta batch expects "
+                        "<root>/<task>/<ep_id>/proprio_stats.h5 + <root>/task_info_<task>.json"
                     ),
                     exit_code=2,
                 )

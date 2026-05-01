@@ -58,11 +58,11 @@ def test_detect_beta_single_episode():
 
 
 @needs_beta
-def test_detect_beta_root_is_unknown_until_M3():
-    """Beta task-dataset root has no h5 in the immediate dir and no sim-named h5
-    in subtree, so M2 returns 'unknown' (Beta batch is M3)."""
+def test_detect_beta_task_root():
+    """As of M3, Beta task-dataset root (task_info_*.json sibling + Beta-named
+    h5 in subtree) is recognised as 'beta' so the dispatcher can auto-batch."""
     beta_root = BETA_EP_DIR.parent.parent  # data/agibot_beta_sample/
-    assert detect_agibot_variant(beta_root) == "unknown"
+    assert detect_agibot_variant(beta_root) == "beta"
 
 
 def test_detect_alpha_path_hint(tmp_path: Path):
@@ -210,8 +210,10 @@ def test_cli_beta_path_routes_to_beta_converter(tmp_path: Path):
 
 
 @needs_beta
-def test_cli_beta_with_batch_flags_refuses(tmp_path: Path):
-    """Beta + --max-episodes/--resume/--workers exits 2 (Beta batch is a future milestone)."""
+def test_cli_beta_single_episode_dir_refuses_batch_flags(tmp_path: Path):
+    """As of M3 the dispatcher allows Beta batch — but only if src is a task
+    root, not a single-episode dir. Passing --max-episodes against a single
+    episode dir exits 2 with a clear hint about the layout mismatch."""
     result = runner.invoke(
         app,
         [
@@ -227,4 +229,4 @@ def test_cli_beta_with_batch_flags_refuses(tmp_path: Path):
         ],
     )
     assert result.exit_code == 2, result.output
-    assert "batch" in result.output.lower() or "milestone" in result.output.lower()
+    assert "single-episode" in result.output.lower() or "task root" in result.output.lower()

@@ -288,12 +288,14 @@ def test_patch8_inspect_beta_state_joint_attrs_visible_in_human_mode():
 
 
 @needs_beta
-def test_patch9_batch_root_unknown_variant_emits_schema_summary(tmp_path: Path):
-    """Batch convert against a Beta task-dataset root (which has neither the sim
-    /meta_info/ subtree nor an h5 directly inside) is detected as 'unknown' by
-    M2's ``detect_agibot_variant`` and exits with a structured "schema summary"
-    error pointing at the actually-present files. v0.1.1 had this case covered
-    by silently-skipping discovery; v0.2 makes it loud and informative."""
+def test_patch9_beta_task_root_routes_to_batch(tmp_path: Path):
+    """Iterations of this test pinned successively-improved behavior:
+
+    - v0.1.1 silently skipped Beta in ``_discover_episodes`` (worst).
+    - v0.2 M2 surfaced "unknown variant" with schema summary (better).
+    - v0.2 M3 routes Beta task root to ``convert_agibot_beta_batch`` and
+      actually produces a v3 dataset (best — does the user's job).
+    """
     src = tmp_path / "beta_root" / "675" / "936938"
     src.mkdir(parents=True)
     (src / "proprio_stats.h5").symlink_to(BETA_H5.resolve())
@@ -313,8 +315,7 @@ def test_patch9_batch_root_unknown_variant_emits_schema_summary(tmp_path: Path):
             "1",
         ],
     )
-    assert result.exit_code == 2, result.output
-    out = result.output.lower()
-    assert "could not identify" in out or "unknown" in out, result.output
-    assert "schema summary" in out or "first 8 entries" in out, result.output
-    assert "Traceback" not in result.output
+    assert result.exit_code == 0, result.output
+    info = json.loads((tmp_path / "out" / "meta" / "info.json").read_text())
+    assert info["robot_type"] == "agibot-beta"
+    assert info["total_episodes"] == 1

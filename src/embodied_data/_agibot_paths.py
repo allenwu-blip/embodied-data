@@ -96,9 +96,14 @@ def detect_agibot_variant(path: Path) -> AgibotVariant:
             return "beta"
         return "unknown"
 
-    # Step 4: sim batch root heuristic — any sim-named h5 anywhere in the
-    # subtree. Beta batch is a future milestone so we don't auto-route Beta
-    # batch roots; users with Beta data must point at a single-episode dir.
+    # Step 4: Beta batch root heuristic — has task_info_*.json sibling and at
+    # least one Beta-named h5 in the subtree. Active as of M3.
+    if path.is_dir() and any(path.glob("task_info_*.json")):
+        for hit in path.rglob("proprio_stats.h5"):
+            if hit.is_file():
+                return "beta"
+
+    # Step 5: sim batch root heuristic — any sim-named h5 anywhere in subtree.
     if path.is_dir():
         for hit in path.rglob("proprio_states.h5"):
             if hit.is_file():
