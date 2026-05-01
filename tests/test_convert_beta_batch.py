@@ -250,6 +250,52 @@ def test_batch_validate_passes(tmp_path: Path):
 
 
 @needs_beta
+def test_batch_no_video_dataset_passes_validate(tmp_path: Path):
+    """Beta v0.2 first cut emits no videos. Confirm `embodied-data validate`
+    handles no-video v3 datasets without false-FAILs (fps consistency must
+    SKIP, frame-video alignment must PASS via episode-meta length×fps proxy)."""
+    from typer.testing import CliRunner
+
+    from embodied_data.cli import app
+
+    root = _build_synthetic_root(
+        tmp_path,
+        episode_ids=[f"ep_{i:02d}" for i in range(3)],
+    )
+    dst = tmp_path / "out"
+    convert_agibot_beta_batch(src=root, dst=dst)
+    assert not (dst / "videos").exists()  # confirm no videos at all
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", str(dst)])
+    assert result.exit_code == 0, result.output
+    output = result.output
+    assert "fps consistency" in output and "SKIP" in output
+    assert "frame-video alignment" in output and "PASS" in output
+    assert "Result: PASS" in output
+
+
+@needs_beta
+def test_batch_does_not_leak_sparse_index_companions(tmp_path: Path):
+    """Beta h5 has action/{joint,effector,end,robot,head,waist}/index sparse
+    arrays. v0.2 silently drops them (LeRobot v3 has no slot for them).
+    Confirm: the converter doesn't crash AND doesn't leak any '*/index'
+    column into the output parquets. Those slots are reserved for the v0.3
+    auxiliary.*.mask roadmap."""
+    root = _build_synthetic_root(tmp_path, episode_ids=["ep_0"])
+    dst = tmp_path / "out"
+    convert_agibot_beta_batch(src=root, dst=dst)
+
+    table = pq.read_table(dst / "data" / "chunk-000" / "file-000.parquet")
+    cols = set(table.column_names)
+    # 'index' (standard v3 global frame counter) is allowed; '*/index'
+    # action companions must NOT leak.
+    assert "index" in cols
+    leaked = {c for c in cols if c.endswith("/index") and c != "index"}
+    assert leaked == set(), f"sparse */index companions leaked: {leaked}"
+
+
+@needs_beta
 def test_batch_via_cli_dispatcher_auto_routes(tmp_path: Path):
     """End-to-end via dispatcher: pointing CLI at a Beta task root with no
     flags routes to batch and writes a multi-episode v3 dataset."""
