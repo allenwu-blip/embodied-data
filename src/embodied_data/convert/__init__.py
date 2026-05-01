@@ -137,6 +137,121 @@ def run_convert(
         return
 
     if pair == ("agibot", "lerobot-v3"):
+        from embodied_data._agibot_paths import detect_agibot_variant, schema_summary
+
+        variant = detect_agibot_variant(src)
+
+        if variant == "alpha":
+            # Alpha schemas were empirically verified equivalent to Beta on
+            # 2026-04-30 (Alpha task 389/episode 656913 vs Beta task 675/episode
+            # 936938 — both 14-dim joint float64, int64 ns timestamps, missing
+            # state/joint.attrs["name"], identical state/{head,waist,end,robot}
+            # subgroups). The Beta converter handles Alpha cleanly. Route alpha
+            # → beta with a single console note so the user knows.
+            if not state.json_output:
+                console.print(
+                    "[yellow]note:[/yellow] Alpha layout detected; schemas are equivalent "
+                    "to Beta per upstream README + empirical verification "
+                    "(see docs/schema/overview.md). Routing through the Beta converter."
+                )
+            variant = "beta"  # fall through to beta branch below
+
+        if variant == "unknown":
+            emit_error(
+                f"could not identify AgiBot variant at {src}",
+                suggestion=(
+                    f"schema summary: {schema_summary(src)}. expected sim DigitalWorld "
+                    "(proprio_states.h5 with 34-dim joint + name attr) or real Beta "
+                    "(proprio_stats.h5 with 14-dim joint, no name attr)"
+                ),
+                exit_code=2,
+            )
+
+        if variant == "beta":
+            from embodied_data._agibot_paths import find_proprio_h5
+            from embodied_data.convert.agibot_beta_to_lerobot import (
+                convert_agibot_beta_batch,
+                convert_agibot_beta_to_lerobot_v3,
+                is_beta_batch_src,
+            )
+
+            # Auto-batch when src is a Beta task root or any of the batch flags
+            # are set. Single-episode otherwise.
+            beta_batch = max_episodes is not None or resume or workers > 1 or is_beta_batch_src(src)
+            if beta_batch and find_proprio_h5(src) is not None:
+                emit_error(
+                    f"--max-episodes / --resume / --workers given but {src} looks like "
+                    "a single-episode dir (has proprio_stats.h5 directly inside)",
+                    suggestion=(
+                        "for batch mode, point at the Beta task-dataset root containing "
+                        "<task>/<ep_id>/proprio_stats.h5 + task_info_<task>.json"
+                    ),
+                    exit_code=2,
+                )
+
+            if (
+                resume
+                and beta_batch
+                and not (dst / "meta" / "extra" / "uuid_map.parquet").is_file()
+            ):
+                uuid_map_path = dst / "meta" / "extra" / "uuid_map.parquet"
+                emit_error(
+                    f"--resume requested but no resume state found at {uuid_map_path}",
+                    suggestion="run without --resume for the first conversion",
+                    exit_code=2,
+                )
+
+            t0 = time.monotonic()
+            try:
+                with _silence_for_json():
+                    if beta_batch:
+                        convert_agibot_beta_batch(
+                            src=src,
+                            dst=dst,
+                            max_episodes=max_episodes,
+                            resume=resume,
+                            workers=workers,
+                        )
+                    else:
+                        convert_agibot_beta_to_lerobot_v3(src=src, dst=dst)
+            except FileNotFoundError as exc:
+                emit_error(
+                    str(exc),
+                    suggestion=(
+                        "Beta single-episode expects proprio_stats.h5 inside the episode "
+                        "dir + task_info_<task>.json at the task root; Beta batch expects "
+                        "<root>/<task>/<ep_id>/proprio_stats.h5 + <root>/task_info_<task>.json"
+                    ),
+                    exit_code=2,
+                )
+            except (KeyError, ValueError) as exc:
+                emit_error(
+                    str(exc),
+                    suggestion=(
+                        "verify the Beta h5 has /state/joint/position with shape (N, 14) "
+                        "and accompanying state/effector|head|waist subgroups"
+                    ),
+                    exit_code=2,
+                )
+            duration = time.monotonic() - t0
+
+            if state.json_output:
+                episodes_written, frames_written = _read_dst_totals(dst)
+                emit_json(
+                    {
+                        "src": str(src),
+                        "dst": str(dst),
+                        "format_pair": [from_format, to_format],
+                        "variant": "beta",
+                        "episodes_written": episodes_written,
+                        "frames_written": frames_written,
+                        "duration_seconds": round(duration, 3),
+                        "warnings": [],
+                    }
+                )
+            return
+
+        # variant == "digitalworld" — original sim path.
         from embodied_data.convert.agibot_to_lerobot import (
             convert_agibot_batch,
             convert_agibot_to_lerobot_v3,
@@ -172,26 +287,22 @@ def run_convert(
             emit_error(
                 str(exc),
                 suggestion=(
-                    "AgiBot expects parallel meta_info/<task>/<uuid>/ and "
+                    "AgiBot DigitalWorld expects parallel meta_info/<task>/<uuid>/ and "
                     "observations/<task>/<uuid>/ trees. Check that both exist under your "
                     "dataset root."
                 ),
                 exit_code=2,
             )
         except (KeyError, ValueError) as exc:
-            msg = str(exc)
-            if "real-robot" in msg or "DigitalWorld sim only" in msg:
-                hint = (
-                    "real Alpha/Beta forward conversion is on the v0.2 roadmap; "
-                    "see docs/schema-agibot.md for detection rules"
-                )
-            else:
-                hint = (
+            emit_error(
+                str(exc),
+                suggestion=(
                     "verify --max-episodes is positive and that the source tree contains "
-                    "discoverable episodes (proprio_state[s]*.h5 + task_info.json); "
+                    "discoverable episodes (proprio_states.h5 + task_info.json); "
                     "see docs/schema-agibot.md for the expected layout"
-                )
-            emit_error(msg, suggestion=hint, exit_code=2)
+                ),
+                exit_code=2,
+            )
         duration = time.monotonic() - t0
 
         if state.json_output:
@@ -201,6 +312,7 @@ def run_convert(
                     "src": str(src),
                     "dst": str(dst),
                     "format_pair": [from_format, to_format],
+                    "variant": "digitalworld",
                     "episodes_written": episodes_written,
                     "frames_written": frames_written,
                     "duration_seconds": round(duration, 3),
