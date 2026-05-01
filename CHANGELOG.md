@@ -5,6 +5,55 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`observation.images.head_color` for Beta / Alpha.** `convert_agibot_beta_to_lerobot_v3`
+  (single-episode) and `convert_agibot_beta_batch` (multi-episode) now
+  re-encode `<src>/videos/head_color.mp4` through the LeRobot v3 video
+  contract — h264, `bf=0`, `g=2`, `yuv420p`, monotonic PTS. Output lives
+  at `videos/observation.images.head_color/chunk-{i:03d}/file-{j:03d}.mp4`,
+  `info.json` declares the video feature, and per-episode video columns
+  (`videos/<key>/chunk_index`, `file_index`, `from_timestamp`,
+  `to_timestamp`) are emitted alongside proprio. End-to-end:
+  `embodied-data convert <beta_episode_dir> <dst> --from agibot --to lerobot-v3`
+  now produces a v3 dataset directly consumable by VLA fine-tuning
+  pipelines.
+- **Shared `_video.py` helpers.** `reencode_video` and `probe_video` factor
+  out the v0.1 sim re-encode path so both pipelines share a single
+  enforcement of the LeRobot v3 video constraints.
+- **Hard-fail on `validate` for declared-but-missing video.** When
+  `info.features` declares `dtype: video`, `frame-video alignment`
+  now FAILs (was SKIP) on missing mp4 files, missing episode-meta video
+  columns, codec decode errors, or frame-count divergence >1 frame.
+  Proprio-only datasets (no `dtype: video` in features) still SKIP
+  cleanly.
+
+### Changed
+
+- **Beta batch all-or-nothing video.** If any pending or already-committed
+  episode in a batch has `videos/head_color.mp4`, the dataset declares
+  the head_color feature; episodes lacking the upstream mp4 are logged
+  to `.beta_batch_errors.jsonl` and skipped (preserving v0.2's
+  per-episode error model). If no episode has video, output is
+  proprio-only (legacy v0.2 behavior unchanged).
+- **`_commit_beta_episode` re-encodes video before writing data.** A
+  missing/broken upstream mp4 fails the commit before any state-laden
+  parquets land, keeping `data/`, `meta/episodes/`, and `uuid_map.parquet`
+  in sync even on partial-failure batches.
+
+### Known limitations (still v0.3.x)
+
+- **Multi-camera support** (`fisheye`, `hand_left/right`, `back_left/right`).
+  v0.3.0 ships head_color only — other cameras land in v0.3.1.
+- **Sparse `action/*/index` companions** still dropped silently — v0.3.2
+  candidate.
+- **`state/end/*` end-pose flattening** (32-dim) — v0.3.3 candidate.
+- **Reverse `lerobot-v3 → agibot-beta`** still not implemented.
+
+[Unreleased]: https://github.com/allenwu-blip/embodied-data/compare/v0.2.0...HEAD
+
 ## [0.2.0] — 2026-04-30
 
 Minor release. Adds first-class support for real-hardware AgiBot captures

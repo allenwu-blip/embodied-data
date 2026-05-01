@@ -4,6 +4,8 @@ Real-hardware AgiBot capture. `embodied-data` v0.2 supports forward
 conversion to LeRobot v3 via
 `convert_agibot_beta_to_lerobot_v3` (single-episode) and
 `convert_agibot_beta_batch` (multi-episode + `--resume` / `--workers`).
+v0.3+ adds `observation.images.head_color` video re-encoding when
+`<episode_dir>/videos/head_color.mp4` is present (see §10).
 
 > **Alpha applies too.** `agibot-world/AgiBotWorld-Alpha` and
 > `agibot-world/AgiBotWorld-Beta` share schemas (verified 2026-04-30 — see
@@ -49,7 +51,11 @@ After extraction (the layout `embodied-data` actually consumes):
 data/agibot_beta_sample/
 ├── task_info_675.json                (list of 399 dicts for task 675)
 └── 675/
-    └── 936938/
+    ├── 882736/                       (v0.3 fixture: proprio + head_color video)
+    │   ├── proprio_stats.h5
+    │   └── videos/
+    │       └── head_color.mp4
+    └── 936938/                       (v0.2 fixture: proprio-only)
         └── proprio_stats.h5
 ```
 
@@ -136,14 +142,60 @@ episodes — by design). If that proves insufficient (task descriptions vary
 per-episode), the fallback to indexed lookup by `episode_id` is a v0.2.1
 patch.
 
-## 10. Out-of-scope for v0.2
+## 10. Video — `observation.images.head_color` (v0.3+)
 
-- Videos (Beta sample we hold ships proprio + metadata only — fixture
-  acquisition for video is a separate sprint)
-- `state/end/*` flattening into `observation.state.end_pose` (32-dim)
+Beta upstream packages videos as multi-GB tars at
+`observations/<task>/<chunk>.tar` with the per-episode layout
+`<episode_id>/videos/{head_color,fisheye_left,fisheye_right,hand_left,hand_right,back_left,back_right}.mp4`.
+Codec is typically av1 @ 30 fps.
+
+`embodied-data` v0.3+ ingests `head_color.mp4` only (other cameras are
+v0.3.1 candidates):
+
+- Single-episode: `convert_agibot_beta_to_lerobot_v3` looks for
+  `<src>/videos/head_color.mp4`. If present, it's re-encoded through
+  the LeRobot v3 video contract — h264, `bf=0`, `g=2`, `yuv420p`,
+  monotonic PTS aligned to `frame_index` — and emitted at
+  `<dst>/videos/observation.images.head_color/chunk-000/file-000.mp4`.
+- Batch: `convert_agibot_beta_batch` is all-or-nothing per dataset.
+  If any episode has the upstream mp4, the dataset declares the
+  `observation.images.head_color` feature; episodes missing it are
+  logged to `.beta_batch_errors.jsonl` and skipped. If no episode
+  has video, output is proprio-only (legacy v0.2).
+
+Output `info.features[observation.images.head_color]`:
+
+```json
+{
+  "dtype": "video",
+  "shape": [height, width, 3],
+  "names": ["height", "width", "channels"],
+  "info": {
+    "video.fps": 30.0,
+    "video.codec": "h264",
+    "video.pix_fmt": "yuv420p",
+    "video.height": <H>,
+    "video.width": <W>,
+    "video.channels": 3,
+    "video.is_depth_map": false
+  }
+}
+```
+
+Per-episode meta gains `videos/observation.images.head_color/{chunk_index, file_index, from_timestamp, to_timestamp}` columns. `info.json.video_path` flips from `null` to the LeRobot v3 standard template.
+
+Hard-fail before re-encode if upstream video frame count diverges
+from proprio frame count by more than 1 frame.
+
+## 11. Out-of-scope for v0.3.0
+
+- Multi-camera (`fisheye_left/right`, `hand_left/right`,
+  `back_left/right`) — v0.3.1
+- `state/end/*` flattening into `observation.state.end_pose` (32-dim) —
+  v0.3.3 candidate
 - `action/{end,robot,head,waist}/*` (only `joint` is captured in
   `observation.state`)
-- Sparse `*/index` companions (see §8)
+- Sparse `*/index` companions (see §8) — v0.3.2 candidate
 - Reverse `lerobot-v3 → agibot-beta`
 - Cross-embodiment retargeting (DigitalWorld 22-dim → Beta 20-dim or
   vice versa)
