@@ -40,6 +40,12 @@ from rich.progress import (
 )
 
 from embodied_data._agibot_paths import find_proprio_h5
+from embodied_data.convert._video import (
+    VideoMetadata,
+    count_reencoded_frames,
+    probe_video,
+    reencode_video,
+)
 
 console = Console()
 
@@ -60,10 +66,45 @@ OBSERVATION_STATE_NAMES_20 = (
 FPS = 30
 ROBOT_TYPE = "agibot-beta"
 CODEBASE_VERSION = "v3.0"
+HEAD_CAMERA_KEY = "observation.images.head_color"
+VIDEO_FILE_SIZE_MB = 200
+
+
+def find_head_color_video(episode_dir: Path) -> Path | None:
+    """Return the upstream Beta head_color.mp4 path if present, else None.
+
+    Canonical Beta layout puts the camera mp4 at
+    ``<episode_dir>/videos/head_color.mp4``. v0.3 ingests head_color only;
+    fisheye / hand cameras are v0.3.1 candidates.
+    """
+    candidate = Path(episode_dir) / "videos" / "head_color.mp4"
+    return candidate if candidate.is_file() else None
+
+
+def _video_feature_dict(width: int, height: int) -> dict:
+    return {
+        "dtype": "video",
+        "shape": [height, width, 3],
+        "names": ["height", "width", "channels"],
+        "info": {
+            "video.fps": float(FPS),
+            "video.codec": "h264",
+            "video.pix_fmt": "yuv420p",
+            "video.height": int(height),
+            "video.width": int(width),
+            "video.channels": 3,
+            "video.is_depth_map": False,
+        },
+    }
 
 
 def convert_agibot_beta_to_lerobot_v3(*, src: Path, dst: Path) -> None:
-    """Convert one Beta episode directory to a LeRobot v3 dataset (no videos)."""
+    """Convert one Beta episode directory to a LeRobot v3 dataset.
+
+    Emits ``observation.images.head_color`` re-encoded to the LeRobot v3 video
+    contract when ``<src>/videos/head_color.mp4`` exists; otherwise emits a
+    proprio-only dataset (legacy v0.2 behavior).
+    """
     src = Path(src)
     dst = Path(dst)
 
@@ -77,6 +118,12 @@ def convert_agibot_beta_to_lerobot_v3(*, src: Path, dst: Path) -> None:
     frame_index = np.arange(n_frames, dtype=np.int64)
     task_name = _resolve_beta_task_name(src)
 
+    head_video_src = find_head_color_video(src)
+    video_meta: VideoMetadata | None = None
+    if head_video_src is not None:
+        video_meta = probe_video(head_video_src)
+        _assert_video_aligned_with_proprio(video_meta, n_frames)
+
     _write_v3_dataset(
         dst=dst,
         n_frames=n_frames,
@@ -85,12 +132,40 @@ def convert_agibot_beta_to_lerobot_v3(*, src: Path, dst: Path) -> None:
         timestamps=timestamps,
         frame_index=frame_index,
         task_name=task_name,
+        head_video_src=head_video_src,
+        video_meta=video_meta,
     )
 
-    console.print(
-        f"[green]done:[/green] {n_frames} frames → {dst} "
-        f"(20-dim state + first-diff action, no videos in v0.2 first cut)"
-    )
+    if video_meta is None:
+        msg = (
+            f"[green]done:[/green] {n_frames} frames → {dst} "
+            "(20-dim state + first-diff action, no head_color video)"
+        )
+    else:
+        msg = (
+            f"[green]done:[/green] {n_frames} frames + head_color "
+            f"({video_meta.width}x{video_meta.height}) → {dst}"
+        )
+    console.print(msg)
+
+
+def _assert_video_aligned_with_proprio(meta: VideoMetadata, n_frames: int) -> None:
+    """Hard-fail if upstream video frame count diverges from proprio by >1 frame.
+
+    PyAV reports ``stream.frames`` as 0 for some av1 containers; in that case
+    we fall back to duration-based estimation.
+    """
+    if meta.n_frames > 0:
+        observed = meta.n_frames
+    elif meta.fps > 0:
+        observed = int(round(meta.duration * meta.fps))
+    else:
+        return
+    if abs(observed - n_frames) > 1:
+        raise ValueError(
+            f"upstream head_color frame count {observed} mismatches proprio "
+            f"frame count {n_frames} (>1 frame off — refusing to emit)"
+        )
 
 
 def _read_beta_state(h5_path: Path) -> tuple[np.ndarray, int]:
@@ -166,11 +241,21 @@ def _write_v3_dataset(
     timestamps: np.ndarray,
     frame_index: np.ndarray,
     task_name: str,
+    head_video_src: Path | None = None,
+    video_meta: VideoMetadata | None = None,
 ) -> None:
     (dst / "meta" / "episodes" / "chunk-000").mkdir(parents=True, exist_ok=True)
     (dst / "data" / "chunk-000").mkdir(parents=True, exist_ok=True)
 
-    _write_info_json(dst, n_frames=n_frames)
+    encoded_n_frames: int | None = None
+    if head_video_src is not None and video_meta is not None:
+        video_dir = dst / "videos" / HEAD_CAMERA_KEY / "chunk-000"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        video_dst = video_dir / "file-000.mp4"
+        reencode_video(head_video_src, video_dst, fps=FPS)
+        encoded_n_frames = count_reencoded_frames(video_dst)
+
+    _write_info_json(dst, n_frames=n_frames, video_meta=video_meta)
     _write_tasks_parquet(dst, task_name=task_name)
     _write_data_parquet(
         dst,
@@ -186,6 +271,7 @@ def _write_v3_dataset(
         task_name=task_name,
         state_20=state_20,
         action_20=action_20,
+        encoded_video_n_frames=encoded_n_frames,
     )
     _write_stats_json(dst, state_20=state_20, action_20=action_20)
 
@@ -205,7 +291,26 @@ def _fixed_size_list(arr: np.ndarray, dim: int) -> pa.Array:
     return pa.FixedSizeListArray.from_arrays(flat, dim)
 
 
-def _write_info_json(dst: Path, *, n_frames: int) -> None:
+def _write_info_json(dst: Path, *, n_frames: int, video_meta: VideoMetadata | None) -> None:
+    features: dict = {
+        "observation.state": {
+            "dtype": "float32",
+            "shape": [20],
+            "names": list(OBSERVATION_STATE_NAMES_20),
+        },
+        "action": {
+            "dtype": "float32",
+            "shape": [20],
+            "names": list(OBSERVATION_STATE_NAMES_20),
+        },
+        "timestamp": {"dtype": "float32", "shape": [1], "names": None},
+        "frame_index": {"dtype": "int64", "shape": [1], "names": None},
+        "episode_index": {"dtype": "int64", "shape": [1], "names": None},
+        "index": {"dtype": "int64", "shape": [1], "names": None},
+        "task_index": {"dtype": "int64", "shape": [1], "names": None},
+    }
+    if video_meta is not None:
+        features[HEAD_CAMERA_KEY] = _video_feature_dict(video_meta.width, video_meta.height)
     info = {
         "codebase_version": CODEBASE_VERSION,
         "fps": FPS,
@@ -215,27 +320,15 @@ def _write_info_json(dst: Path, *, n_frames: int) -> None:
         "total_tasks": 1,
         "chunks_size": 1000,
         "data_files_size_in_mb": 100,
-        "video_files_size_in_mb": 200,
+        "video_files_size_in_mb": VIDEO_FILE_SIZE_MB,
         "data_path": "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet",
-        "video_path": None,
+        "video_path": (
+            "videos/{video_key}/chunk-{chunk_index:03d}/file-{file_index:03d}.mp4"
+            if video_meta is not None
+            else None
+        ),
         "splits": {"train": f"0:{n_frames}"},
-        "features": {
-            "observation.state": {
-                "dtype": "float32",
-                "shape": [20],
-                "names": list(OBSERVATION_STATE_NAMES_20),
-            },
-            "action": {
-                "dtype": "float32",
-                "shape": [20],
-                "names": list(OBSERVATION_STATE_NAMES_20),
-            },
-            "timestamp": {"dtype": "float32", "shape": [1], "names": None},
-            "frame_index": {"dtype": "int64", "shape": [1], "names": None},
-            "episode_index": {"dtype": "int64", "shape": [1], "names": None},
-            "index": {"dtype": "int64", "shape": [1], "names": None},
-            "task_index": {"dtype": "int64", "shape": [1], "names": None},
-        },
+        "features": features,
     }
     (dst / "meta" / "info.json").write_text(json.dumps(info, indent=2))
 
@@ -281,10 +374,11 @@ def _write_episodes_parquet(
     task_name: str,
     state_20: np.ndarray,
     action_20: np.ndarray,
+    encoded_video_n_frames: int | None = None,
 ) -> None:
     s = _stats(state_20)
     a = _stats(action_20)
-    row = {
+    row: dict = {
         "episode_index": [0],
         "tasks": [[task_name]],
         "length": [int(n_frames)],
@@ -305,6 +399,14 @@ def _write_episodes_parquet(
         "stats/action/std": [a["std"]],
         "stats/action/count": [a["count"]],
     }
+    if encoded_video_n_frames is not None:
+        # Use the re-encoded frame count (truth on disk) for ts span.
+        # Re-encode emits monotonic PTS = frame_index, so duration == N/fps.
+        duration = encoded_video_n_frames / float(FPS)
+        row[f"videos/{HEAD_CAMERA_KEY}/chunk_index"] = [0]
+        row[f"videos/{HEAD_CAMERA_KEY}/file_index"] = [0]
+        row[f"videos/{HEAD_CAMERA_KEY}/from_timestamp"] = [0.0]
+        row[f"videos/{HEAD_CAMERA_KEY}/to_timestamp"] = [float(duration)]
     table = pa.Table.from_pydict(row)
     pq.write_table(table, dst / "meta" / "episodes" / "chunk-000" / "file-000.parquet")
 
