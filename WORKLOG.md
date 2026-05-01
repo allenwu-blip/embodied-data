@@ -363,3 +363,64 @@ access; PyPI token in ~/.pypirc; `gh auth` as allenwu-blip).
    videos / sparse index / end-pose / reverse-Beta / joint-names override.
    Top candidate by user-impact: videos for Beta (a real Beta dataset
    without video columns is much less useful for VLA fine-tuning).
+
+---
+
+## v0.2.0 GA — 2026-05-01
+
+Allen squash-merged v0.2 PR #1 to main; v0.2.0 release ran the same 7-step
+flow as v0.1.0 / v0.1.1.
+
+- `5864816` `docs: capture v0.2.x patch backlog (task-name single-episode resolution)` — recorded the issue Allen flagged during release prep (Beta single-episode task-name resolver only walks `src` and `src.parent`, missing the canonical `task_info_<task>.json` at `src.parent.parent`; out of scope for v0.2.0, v0.2.1 candidate).
+- `a564031` `chore: release v0.2.0 — Beta + Alpha forward conversion` — bump pyproject + `__version__` 0.1.1 → 0.2.0; CHANGELOG `[0.2.0]` section (Added: Beta single + batch + dispatcher + schema docs reorg; Changed: Alpha no longer refused — empirical equivalence verified; Known limitations deferred to v0.3+).
+- Tag `v0.2.0` (annotated, single-line message), pushed; tag CI run `25202379310` ✓ success, drift guard `version=0.2.0 tag=v0.2.0 match=true`.
+- Draft GitHub release built with prelude + Quick Start that does NOT assume any local fixture (uses public `lerobot/pusht` for sim path + Beta path with HF gating disclaimer + link to `docs/schema/beta.md` §1 for the stream-extract trick).
+- `rm -rf dist/ && uv build && twine check && twine upload && gh release edit v0.2.0 --draft=false` — all green.
+- PyPI live: <https://pypi.org/project/embodied-data/0.2.0/> (wheel 47.6 kB / sdist 35.5 kB; pip download fetched byte-identical wheel after a brief uv-index cache invalidation).
+- GitHub release public: <https://github.com/allenwu-blip/embodied-data/releases/tag/v0.2.0>.
+
+**Patch backlog appended** (recorded in `docs/v0.2.x-patches.md` for the next patch sprint, NOT shipping in v0.2.0):
+- Beta single-episode CLI falls back to `task = "unknown"` (the ancestor-walk fix described above).
+- Release-notes Beta Quick-Start uses literal `<episode_id>` placeholder — copy-paste-broken for external users; `gh release edit` fix when convenient.
+
+---
+
+## Total project timeline — sprint 1 brief → v0.2.0 GA
+
+**Origin** (2026-04-24): Allen wanted to enter the embodied-AI data-tools
+space as a one-person company. Two rounds of global research (CN + US robotics
+companies + UMich Robotics labs + GitHub issue forensics) located the highest-
+density pain point: AgiBot ↔ LeRobot v3 schema-conversion friction, with five
+upstream issues already complained-about and unresolved. Decision: ship a
+focused converter + validator, OSS-first, leverage Claude Code throughput.
+
+**Cumulative metrics (counted on main as of 2026-05-01)**:
+
+| Maxim | Number |
+| --- | --- |
+| Commits on main | **48** |
+| Releases shipped (PyPI + GitHub) | **3** — v0.1.0, v0.1.1, v0.2.0 |
+| Tags | `v0.1.0`, `v0.1.1`, `v0.2.0` |
+| Tests | 0 → **98 passed + 1 skipped** |
+| Lines of CHANGELOG | 0 → 100+ |
+| Schema reference docs | 0 → 4 (`docs/schema-lerobot-v3.md` + `docs/schema/{overview,digitalworld,beta}.md`) |
+| Upstream issue comments posted | **4** (AgiBot-World #18 / #124 / #149, huggingface/lerobot #2158) |
+| Issue triage drafts on file | 10 (5 in-scope posted, 5 out-of-scope politely declined or deferred) |
+| HF datasets validated end-to-end | 4 (`lerobot/pusht`, `lerobot/unitreeh1_warehouse`, `gpudad/so101_pick_cube_chunked`, `agibot-world/AgiBotWorld-Alpha` head-to-head) |
+| Subagent dispatches | ~15 across all sprints (5 Sprint 1, 5 Sprint 2, 6 Sprint 3) |
+| Subagent stalls / timeouts | 3 (Sprint 1 D — converter, Sprint 2 B — reverse, Sprint 2 B.fixer near-miss). All recovered via Tech-Lead-direct-implementation with schema docs as durable ground truth. |
+| Sprints | 5 (Sprint 1 foundation; Sprint 2 v0.1 GA; Sprint 3 6h autonomous Track 1+2+3 → v0.1.1 + v0.2 scaffold + draft PR; Sprint 4 6h autonomous M3 + Alpha verify + schema reorg + ready-for-review; v0.2.0 release sprint) |
+
+**Releases by content**:
+
+- **v0.1.0** (Sprint 2 closeout, 2026-04-30): first public release. typer CLI, sim DigitalWorld → LeRobot v3 single-episode + batch, lerobot-v3 → sim AgiBot reverse, validate (5 checks), preview, inspect, --json, --version, schema docs, HF dataset survey. 50 tests.
+- **v0.1.1** (Sprint 3 closeout, 2026-04-30): sim/real-Beta compatibility patches. Filename glob accepts both `proprio_state{s,}.h5`, list-of-episodes `task_info` resolution, preview honest joint-count reporting, robot_type from h5 attrs, error-path KeyError wrap, inspect attrs visibility, batch-discover refuses Beta loudly, v0.1's "refuse-and-document" guard for Beta. 64 tests.
+- **v0.2.0** (this release, 2026-05-01): real-hardware Beta + Alpha forward conversion. Schema-detect dispatcher, Beta single + batch + reverse-stub, Alpha empirical equivalence + auto-route. 98 tests + 1 skipped.
+
+**Subagent timeout pattern (durable lesson)**: subagents stall around 200+ LOC + tests in a single dispatch. Mitigation that worked all three times: schema documentation written to `docs/schema/` BEFORE implementation, so when the subagent timed out, Tech Lead resumed with full context and shipped equivalent code in 15-20 min. Going forward: keep subagent prompts under ~150 LOC of expected output; for bigger work, Tech Lead writes directly.
+
+**Standing [PUBLISH] queue**: empty. All four categories of in-flight artifacts (PyPI releases, GitHub releases, issue comments, tags) are landed.
+
+**Standing [CRED]**: all live (HF token with Alpha + Beta + DigitalWorld access, PyPI token in `~/.pypirc`, `gh auth` as `allenwu-blip`).
+
+Next sprint direction is Allen-defined; no Tech Lead carry-over.
