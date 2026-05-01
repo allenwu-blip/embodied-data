@@ -4,10 +4,8 @@ import json
 import shutil
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from fractions import Fraction
 from pathlib import Path
 
-import av
 import h5py
 import numpy as np
 import pyarrow as pa
@@ -22,6 +20,7 @@ from rich.progress import (
 )
 
 from embodied_data._agibot_paths import PROPRIO_GLOB, find_proprio_h5
+from embodied_data.convert._video import reencode_video
 
 console = Console()
 
@@ -1017,32 +1016,7 @@ def _write_stats_json(dst: Path, *, state_22: np.ndarray, action_22: np.ndarray)
 
 
 def _reencode_video(src: Path, dst: Path, *, fps: int) -> None:
-    # v3 footgun F1: never reuse upstream timestamps. Re-encode with monotonic
-    # pts, small GOP, and B-frames disabled so DTS == PTS and the mp4 muxer
-    # never sees out-of-order packets.
-    time_base = Fraction(1, fps)
-    in_container = av.open(str(src))
-    in_stream = in_container.streams.video[0]
-    width = in_stream.codec_context.width
-    height = in_stream.codec_context.height
-
-    out_container = av.open(str(dst), mode="w")
-    out_stream = out_container.add_stream("h264", rate=fps)
-    out_stream.width = width
-    out_stream.height = height
-    out_stream.pix_fmt = "yuv420p"
-    out_stream.options = {"crf": "30", "g": "2", "bf": "0"}
-    out_stream.codec_context.time_base = time_base
-
-    try:
-        for i, frame in enumerate(in_container.decode(in_stream)):
-            new_frame = frame.reformat(format="yuv420p")
-            new_frame.pts = i
-            new_frame.time_base = time_base
-            for packet in out_stream.encode(new_frame):
-                out_container.mux(packet)
-        for packet in out_stream.encode():
-            out_container.mux(packet)
-    finally:
-        out_container.close()
-        in_container.close()
+    # v3 footgun F1: never reuse upstream timestamps. The shared helper enforces
+    # monotonic PTS, GOP=2, and B-frames disabled so DTS == PTS and the mp4
+    # muxer never sees out-of-order packets.
+    reencode_video(src, dst, fps=fps)
