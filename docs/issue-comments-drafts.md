@@ -50,7 +50,7 @@ Repository: <https://github.com/allenwu-blip/embodied-data>
   > v0.1.0 just released — `pip install embodied-data` to try ([release notes](https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0)).
   >
   > Happy to repro on a small slice.
-- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/huggingface/lerobot/issues/2158#issuecomment-4356518120>, comment_id 4356518120
+- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/huggingface/lerobot/issues/2158#issuecomment-4356518120>, comment_id 4356518120; posted v0.3.0 update 2026-05-01 by allenwu-blip, comment URL <https://github.com/huggingface/lerobot/issues/2158#issuecomment-4362563292>, comment_id 4362563292
 
 ### #2689 — ALOHA sim v2.1→v3.0 yields abnormal "spark" joint actions (partial)
 - **Target URL**: <https://github.com/huggingface/lerobot/issues/2689>
