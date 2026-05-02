@@ -28,7 +28,7 @@ Repository: <https://github.com/allenwu-blip/embodied-data>
   > v0.1.0 just released — `pip install embodied-data` to try ([release notes](https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0)).
   >
   > Happy to test on your AgiBot subset if you point at the task IDs.
-- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/124#issuecomment-4356516845>, comment_id 4356516845
+- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/124#issuecomment-4356516845>, comment_id 4356516845; posted v0.3.0 update 2026-05-01 by allenwu-blip, comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/124#issuecomment-4362561904>, comment_id 4362561904
 
 ### #149 — Frame/video misalignment in 9 tasks during LeRobot 3.0 conversion
 - **Target URL**: <https://github.com/OpenDriveLab/AgiBot-World/issues/149>
