@@ -270,14 +270,28 @@ def check_alignment(path: Path, info: dict) -> CheckResult:
                         f"ep{ep_idx[i]} {vk}: rows={length} (={expected_dur:.3f}s) "
                         f"vs ts span {actual_dur:.3f}s (>1 frame off)"
                     )
-                # Cross-check the on-disk video frame count against length.
+                # Confirm the mp4 decodes; surface broken codec / corrupt files
+                # as FAIL even though the duration check above is the primary
+                # alignment signal.
                 try:
                     with av.open(str(vp)) as c:
                         frames = int(c.streams.video[0].frames)
                 except Exception as e:  # noqa: BLE001
                     issues.append(f"ep{ep_idx[i]} {vk}: cannot decode {vp.name} ({e})")
                     continue
-                if frames > 0 and abs(frames - int(length)) > 1:
+                # Frame-count cross-check is only meaningful when the episode
+                # owns the whole video file (one-episode-per-mp4, like Beta v0.3
+                # output). When multiple episodes share a video and slice via
+                # from_timestamp / to_timestamp (LeRobot's pusht pattern), the
+                # whole-file frame count is unrelated to per-episode length —
+                # the duration check above is the right invariant. Detect the
+                # one-episode-per-mp4 case via from_ts ≈ 0 AND to_ts ≈ frames/fps.
+                if (
+                    frames > 0
+                    and ft <= 1.0 / fps  # episode starts at file start
+                    and abs(tt - frames / fps) <= 1.5 / fps  # episode ends at file end
+                    and abs(frames - int(length)) > 1
+                ):
                     issues.append(
                         f"ep{ep_idx[i]} {vk}: video frames={frames} "
                         f"vs episode length={length} (>1 frame off)"

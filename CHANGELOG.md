@@ -22,6 +22,10 @@ work unchanged in v0.3.1** — this release is purely additive.
 
 - `_resolve_beta_task_name` now walks up to four ancestors (was only `src` and `src.parent`). Single-episode CLI invocations like `embodied-data convert <root>/<task>/<ep_id>/ ...` now find the canonical `<root>/task_info_<task>.json` and produce a `meta/tasks.parquet` with the real task name instead of `"unknown"`. Resolves the v0.2.x patch backlog item.
 
+### Fixed
+
+- `validate` no longer false-FAILs on `lerobot/pusht` and other multi-episode-per-video LeRobot v3 datasets. v0.3.0's frame-count cross-check incorrectly compared whole-video frame count to single-episode length, producing one FAIL per episode on the official quick-start dataset (`pusht`'s 25650-frame video shared across 206 episodes). v0.3.1 scopes the frame-count check to one-episode-per-mp4 datasets only (detected via `from_timestamp ≈ 0` AND `to_timestamp ≈ frames/fps`). Multi-episode-per-mp4 datasets fall back to the duration check, which correctly validates per-episode slices via `(to_ts - from_ts) ≈ length/fps`.
+
 ### Repo hygiene (no user-visible behavior change)
 
 - GitHub Discussions enabled with 4 sticky welcome threads (Announcements / Q&A / Show and tell / Ideas).
