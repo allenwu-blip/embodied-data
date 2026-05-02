@@ -607,3 +607,85 @@ f5faedd docs(schema): update beta.md §1 fixture section for v0.3 head_color
 3. **v0.3.1 multi-camera** if a real user has asked for fisheye / hand / back specifically. Same h264 contract per camera, generalize `find_head_color_video` → `find_camera_videos(ep_dir) -> dict[str, Path]`. Largest single feature gap remaining for bimanual VLA training but speculative until a user names it.
 
 **Cowork hand-off (still live)**: distribution recheck still pending. Tech Lead pauses again after this sprint's WORKLOG commit until either (a) reply signal hits or (b) Allen returns with v0.3.1 release approval or a new direction.
+
+---
+
+## Sprint 7 release closeout — v0.3.1 GA (2026-05-02 ~01:20 PT)
+
+**Released**: `v0.3.1` on PyPI + GitHub. Latest tag flipped from `v0.3.0` to `v0.3.1` ~14 hours after v0.3.0. Quality-of-life patch — three new CLI flags (`--dry-run`, `--verify`, `inspect --summary`), Beta single-episode task-name fix, plus a regression fix that surfaced *while drafting these release notes* (see below). v0.3.0 datasets are bit-identical to v0.3.1 outputs — no re-conversion required by users.
+
+**Artifacts**:
+
+| Artifact | Size | URL |
+| --- | --- | --- |
+| Wheel `embodied_data-0.3.1-py3-none-any.whl` | 58 KB on disk / 61 KB upload | https://pypi.org/project/embodied-data/0.3.1/ |
+| Sdist `embodied_data-0.3.1.tar.gz` | 46 KB on disk / 55 KB upload | (same) |
+| GitHub release | 7088-char body | https://github.com/allenwu-blip/embodied-data/releases/tag/v0.3.1 |
+| Tag | `v0.3.1` (annotated, force-moved once mid-release — see below) | underlying commit `ce84cbc` |
+
+**Sprint 7 commits (10 total, all on `main`)**:
+
+```
+9505793 chore(repo): OSS hygiene — issue/PR templates, CONTRIBUTING/CoC/SECURITY, nightly CI
+ec5fe00 docs(readme): refresh badges, add convert-output screenshot, post-v0.3 staleness fixes
+70f3614 fix(beta): resolve task name via ancestor walk for single-episode src
+4d93239 feat(cli): convert --dry-run and convert --verify
+775d756 feat(cli): inspect <dataset_dir> --summary for v3 dataset overview
+17d6f28 chore(sprint-7): CHANGELOG Unreleased + README hint + WORKLOG closeout
+0bd03d6 chore: release v0.3.1 — CLI QoL flags + repo hygiene + Beta task-name fix
+ce84cbc fix(validate): scope frame-count check to one-episode-per-mp4 datasets   ← regression caught mid-release
+```
+
+(plus the two upcoming commits — this WORKLOG entry and any follow-on closeout chores — bringing main to ~73 total project commits at GA.)
+
+**Cumulative metrics**:
+
+| Maxim | Was (v0.3.0 GA) | Now (v0.3.1 GA) |
+| --- | --- | --- |
+| Commits on main | 60 | **73** (+13) |
+| PyPI releases | 4 (0.1.0 / 0.1.1 / 0.2.0 / 0.3.0) | **5** (… / **0.3.1**) |
+| Tags | 4 | **5** |
+| Tests passing | 114 + 1 skipped | **130 + 1 skipped** (+16) |
+| Wheel size on PyPI | 49 KB (v0.3.0) | 61 KB (v0.3.1) — +12 KB for inspect summary + dry-run helpers |
+| Sprints | 6 | 7 |
+
+### What didn't go to plan — mid-release regression
+
+Per Sprint 7 plan, the v0.3.1 release flow was supposed to be 7 mechanical steps: bump version, commit, push, CI, tag, CI, draft. **Step 7 (release body draft) is where it broke.**
+
+While composing the release notes' `inspect --summary` quick-start example, I ran the command against the real `data/hf_v3_samples/pusht` fixture to capture the actual output. Result: **5/5 validate checks INCLUDING frame-video alignment FAIL**, with 206 misalignments reported. The official LeRobot v3 reference dataset that the README's quick-start tells users to download was failing the validator that v0.3.0 just shipped.
+
+Root cause: Sprint 6's `accf03b` (validate hard-fail) added a whole-video frame-count cross-check `abs(c.streams.video[0].frames - length) > 1`. That assumes one episode owns the whole mp4. pusht packs all 206 episodes into ONE 25650-frame mp4 and slices via `from_timestamp` / `to_timestamp` per episode — so `frames=25650` vs `length=161` (episode 0) tripped the check 206 times.
+
+**This regression shipped silently in v0.3.0.** Nobody had run `validate` against pusht in v0.3.0 because the v0.3.0 testing was Beta-fixture-focused, and pusht only resurfaced when it was the most natural quick-start example for the v0.3.1 release notes.
+
+**Recovery**: STOP, fix, re-tag.
+
+1. Stopped at draft-write step (no PyPI artifact, no draft on GitHub yet).
+2. Reported to Allen with three options (force-move tag / delete-and-retag / bump to v0.3.2). Allen approved Option A (force-move) since `v0.3.1` was minutes old with zero consumers.
+3. Fix at `ce84cbc`: scope the frame-count check to one-episode-per-mp4 cases (detect via `from_ts ≈ 0` AND `to_ts ≈ frames/fps`); multi-episode-per-mp4 falls back to the duration check, which correctly validates per-episode slices.
+4. Regression test added: `tests/test_convert_beta_video.py::test_validate_passes_on_multi_episode_per_video_pattern` fabricates a two-episodes-share-one-mp4 layout and asserts PASS.
+5. Force-moved tag: `git tag -fa v0.3.1 ce84cbc -m "..."` + `git push --force origin v0.3.1`. Tag CI re-ran on the fix-included commit, green.
+6. Resumed step 7 with the fix in the release body's `### Fixed` section + a transparent "Engineering note — caught and fixed in this release" paragraph.
+7. Allen approved draft. Step 10 ran clean: build → twine check → upload → CDN sync → un-draft → Latest.
+
+**Total elapsed for the regression detour: ~25 min.** No PyPI uploads happened on the broken commit (regression was caught in the draft-prep window, before twine ran).
+
+### Durable lessons added to v0.4 sprint runbook
+
+1. **Quick-start examples in release notes must be run against the real fixture, not fabricated.** This regression would have shipped in v0.3.1 too (untouched) if I'd hand-rolled a plausible-looking `inspect --summary` output instead of running the command. The forcing function "actually try the quick-start before publishing" caught a v0.3.0-shipped bug.
+2. **Validate checks should be run against multiple shape patterns before shipping**, not just the project's own fixtures. Beta v0.3 outputs are one-episode-per-mp4. pusht is multi-episode-per-mp4. `unitreeh1_warehouse` and `so101_pick_cube_chunked` (both in the local fixtures dir) might surface other patterns. Worth a sweep next time validate behavior changes.
+3. **Force-moving a release tag is acceptable when the tag is minutes old with zero consumers** (no PyPI artifact, no GitHub draft, no announcements). Allen approved Option A given those conditions; the alternative (bumping to v0.3.2) would have wasted a version number for no audit benefit. Pattern for next time: catch regressions in the draft-prep window > step 8 > step 10, not after.
+4. **`ruff format --check` pre-commit gating worked.** Sprint 6's release commit failed CI on a format violation; v0.3.1's release commit went green on first try because the CONTRIBUTING.md reminder + the local pre-commit `uv run ruff format --check .` step caught everything before push. Adding this to CONTRIBUTING was the lowest-effort fix that paid off immediately.
+
+**Standing [PUBLISH] queue**: empty. v0.3.1 is the latest published artifact across PyPI + GitHub + tag.
+
+**Standing [CRED]**: all live (no rotation needed since v0.2.0).
+
+**Cowork hand-off**: distribution recheck still pending. The `## [Unreleased]` section of CHANGELOG.md is now empty; nothing is staged for v0.3.2. Tech Lead pauses until Allen returns with cowork outcome OR until a real-user signal lands on one of the 4 v0.3.0-update issue threads (72h window from 2026-05-01 ~19:30 PT runs through 2026-05-04 ~19:30 PT).
+
+**Next sprint candidates (top 3, signal-dependent)**:
+
+1. **Wait for signal.** Default. The 72h reply window from the v0.3.0 / v0.3.1 burst on the 4 upstream issue threads is the highest-value source of direction.
+2. **v0.3.2 multi-camera** (fisheye / hand / back) — only if a real user names it. Speculative otherwise.
+3. **Validate-pattern sweep** — run `validate` against every dataset in `data/hf_v3_samples/` plus one or two more public LeRobot v3 datasets to catch any other shape assumptions before they ship. Low-glamour but the kind of thing that prevents another mid-release regression. ~1 hour of work.
