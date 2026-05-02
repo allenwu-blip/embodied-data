@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new dataset format, CLI feature, or capability
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. Please describe the use case first — knowing *why* helps us scope the right *how*.
+  - type: textarea
+    id: use_case
+    attributes:
+      label: What use case are you trying to enable?
+      placeholder: e.g. "I want to convert ALOHA HDF5 → LeRobot v3 to train on..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Optional. Sketch the CLI, API, or behavior you have in mind.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Other tools, workarounds, or designs you tried or thought about.
+    validations:
+      required: false
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority for you
+      options:
+        - Blocking my work
+        - Would significantly help
+        - Nice-to-have
+    validations:
+      required: true

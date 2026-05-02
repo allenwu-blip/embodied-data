@@ -1,0 +1,22 @@
+name: Question
+description: Ask about how something works or how to do X
+title: "[question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For general questions, the [Discussions Q&A board](https://github.com/allenwu-blip/embodied-data/discussions/categories/q-a) is usually faster — open an issue here only if you're confident this is a bug or feature request masquerading as a question.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you've already tried
+      description: Optional. Docs you read, commands you ran, error messages you hit.
+    validations:
+      required: false

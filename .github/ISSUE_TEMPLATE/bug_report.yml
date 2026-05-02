@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a problem with embodied-data conversion or validation
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in the fields below so we can reproduce the issue quickly.
+  - type: input
+    id: version
+    attributes:
+      label: What version are you running?
+      description: Output of `embodied-data version`
+      placeholder: e.g. 0.3.0
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact command line invocation + a short description of the input dataset.
+      placeholder: |
+        1. Command: `embodied-data convert --from agibot --to lerobot-v3 ./my_dataset ./out`
+        2. Dataset: AgiBot World subset, 12 episodes, dual-arm pick-and-place, recorded with the standard AgiBot rig.
+        3. Run the command above and observe the failure.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: e.g. Conversion completes and `out/` contains a valid LeRobot v3 dataset.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior (include error message + traceback if any)
+      placeholder: |
+        Paste the full stderr / traceback here. Wrap long output in triple backticks.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: e.g. 3.12.4
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else (logs, dataset link, screenshots)
+      description: Optional. Attach files by dragging them into this field.
+    validations:
+      required: false

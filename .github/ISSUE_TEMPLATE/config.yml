@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General questions / Q&A
+    url: https://github.com/allenwu-blip/embodied-data/discussions/categories/q-a
+    about: For general usage questions and how-to discussions, please use the Q&A board.
+  - name: Show and tell / use cases
+    url: https://github.com/allenwu-blip/embodied-data/discussions/categories/show-and-tell
+    about: Sharing how you're using embodied-data — pipelines, labs, projects.
+  - name: Roadmap input
+    url: https://github.com/allenwu-blip/embodied-data/discussions/categories/ideas
+    about: Suggest priorities for v0.3.x / v0.4 roadmap.

@@ -1,0 +1,103 @@
+name: Nightly CI
+
+# Separate from per-push ci.yml: runs daily across multiple Python versions
+# to catch upstream drift (CPython releases, transitive dep regressions, etc.)
+# that the fast per-push lane (3.12 only) wouldn't notice.
+on:
+  schedule:
+    # 04:00 UTC daily (~midnight US-East / noon Asia). Off-peak for Actions runners.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Don't cancel sibling matrix entries when one fails — we want the full
+      # signal (e.g. "3.13 broke but 3.12 still green") not just first-failure.
+      fail-fast: false
+      matrix:
+        # NOTE: pyproject.toml currently sets `requires-python = ">=3.12"`,
+        # so the 3.11 entry is EXPECTED to fail at `uv sync --frozen`. That
+        # failure is the intended signal — if it ever starts passing, it means
+        # someone widened the supported range and this matrix should be
+        # revisited. Drop '3.11' here once Allen decides we don't care about
+        # detecting that drift anymore.
+        python-version: ['3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Sync dependencies (frozen)
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Pytest with coverage
+        run: uv run pytest -q --cov=embodied_data --cov-report=term
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    needs: test
+    # Only auto-file an issue for cron-triggered failures. Manual dispatch
+    # failures are noise — Allen knows he just pressed the button.
+    if: failure() && github.event_name == 'schedule'
+    permissions:
+      issues: write
+    steps:
+      - name: Open tracking issue (dedup against existing open ci-failure)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'ci-failure';
+            const { owner, repo } = context.repo;
+
+            // Dedup: skip if any open issue already carries the ci-failure label,
+            // so consecutive nightly failures don't spam the tracker.
+            const existing = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: label,
+              per_page: 1,
+            });
+            if (existing.data.length > 0) {
+              core.info(`Open ${label} issue already exists (#${existing.data[0].number}); skipping.`);
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const logsUrl = `${runUrl}`;
+            const title = `Nightly CI failed: ${context.runId}`;
+            const body = [
+              `Nightly CI run failed.`,
+              ``,
+              `- **Workflow:** ${context.workflow}`,
+              `- **Run number:** ${context.runNumber}`,
+              `- **Run ID:** ${context.runId}`,
+              `- **Run URL:** ${runUrl}`,
+              `- **Logs:** ${logsUrl}`,
+              `- **Triggered by:** ${context.eventName}`,
+              `- **Commit:** ${context.sha}`,
+              ``,
+              `_Auto-filed by .github/workflows/nightly.yml. Close after triage; a new issue will only open once this one is closed._`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+              labels: [label],
+            });
