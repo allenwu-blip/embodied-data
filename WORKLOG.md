@@ -478,3 +478,72 @@ Next sprint direction is Allen-defined; no Tech Lead carry-over.
 1. **v0.3.1 multi-camera** — fisheye / hand / back. Same h264 contract per camera, generalize `find_head_color_video` → `find_camera_videos(ep_dir) -> dict[str, Path]`. Largest single user-facing gap remaining for VLA training.
 2. **v0.3.2 sparse `*/index` masks** as `auxiliary.<group>.mask` features. Smaller surface; relevant for imitation-learning pipelines that need teleoperator-active timesteps.
 3. **Real-user feedback channel**. v0.3.0 makes the converter usable end-to-end; the next pipeline-rate-limiter is whether labs are actually trying it. Options: lurk Discord/Slack robotics communities, post a "v0.3.0 real video" comment on the upstream issue threads we're already on, or ask UMich Robotics labs directly.
+
+---
+
+## Sprint 6 release closeout — v0.3.0 GA (2026-05-01 18:53 PT)
+
+**Released**: `v0.3.0` on PyPI + GitHub. Latest tag flipped from `v0.2.0` to `v0.3.0`. Single command's worth of friction removed for VLA-training labs trying real Beta data — `info.json.video_path` is no longer `null`, and `videos/observation.images.head_color/chunk-NNN/file-NNN.mp4` actually decodes.
+
+**Artifacts**:
+
+| Artifact | Size | URL |
+| --- | --- | --- |
+| Wheel `embodied_data-0.3.0-py3-none-any.whl` | 53 KB on disk / 61 KB upload | https://pypi.org/project/embodied-data/0.3.0/ |
+| Sdist `embodied_data-0.3.0.tar.gz` | 41 KB on disk / 49 KB upload | (same) |
+| GitHub release | 6328-char body | https://github.com/allenwu-blip/embodied-data/releases/tag/v0.3.0 |
+| Tag | `v0.3.0` | annotated, signed off `35c3c4c` |
+
+**10 commits this sprint** (all on `main`):
+
+```
+df1e7a0 refactor(video): extract reencode_video + probe_video to shared _video.py
+56758ad feat(beta): emit observation.images.head_color video on single-episode convert
+d22c377 feat(beta): emit head_color video on multi-episode batch convert
+accf03b feat(validate): hard-fail when declared video is missing or broken
+6d39707 test(video): integration + unit + negative tests for Beta head_color pipeline
+7e29024 docs(v0.3): CHANGELOG Unreleased section + Beta schema video appendix
+441dca8 chore(worklog): sprint 6 v0.3.0 head_color closeout + README roadmap bump
+ca4c969 chore: release v0.3.0 — head_color video for Beta + validate hard-fail
+35c3c4c chore: ruff format scripts/ + tests/ for v0.3 sprint
+f5faedd docs(schema): update beta.md §1 fixture section for v0.3 head_color
+```
+
+**Cumulative metrics**:
+
+| Maxim | Was (v0.2.0 GA) | Now (v0.3.0 GA) |
+| --- | --- | --- |
+| Commits on main | 48 | **60** (+12) |
+| PyPI releases | 3 | **4** (0.1.0 / 0.1.1 / 0.2.0 / **0.3.0**) |
+| Tags | 3 | **4** (`v0.1.0` / `v0.1.1` / `v0.2.0` / **`v0.3.0`**) |
+| Tests passing | 98 + 1 skipped | **114 + 1 skipped** (+16) |
+| HF datasets exercised | 4 | 4 |
+| Sprints | 5 | 6 |
+| Wheel size on PyPI | 49 KB (v0.2.0) | 61 KB (v0.3.0) — +12 KB for `_video.py` + Beta video paths |
+
+**7-step release flow execution**:
+
+| Step | Outcome |
+| --- | --- |
+| 1. CHANGELOG `## [Unreleased]` → `## [0.3.0] — 2026-05-01` + bottom link | clean |
+| 2. version bump 0.2.0 → 0.3.0 (pyproject.toml + `__init__.py`) | clean |
+| 3. release commit + push (`ca4c969`) | clean |
+| 4. main CI | **first attempt FAILED** on `ruff format --check` (CI runs `ruff format --check` separately from `ruff check` — local pre-commit only ran the latter, missed two trivial whitespace tweaks in `scripts/fetch_beta_video_fixture.py` + `tests/test_convert_beta_video.py`). Forward-fixed via `35c3c4c` (no rollback needed since version commit was already pushed). main CI green on retry. |
+| 5. tag `v0.3.0` + push | clean |
+| 6. tag CI | green ([run](https://github.com/allenwu-blip/embodied-data/actions/runs/25239514904)) |
+| 7. release body (v0.1.x prelude shape, real `882736` ep id in Beta quick-start, `validate` strict-mode call-out, CHANGELOG `[0.3.0]` body) + `f5faedd` for `docs/schema/beta.md` §1 dual-fixture documentation | clean |
+| 8. `gh release create v0.3.0 --draft` | URL `untagged-45d52187cb721dba6912` (GitHub draft preview pattern) |
+| 9. STOP for Allen review | approved |
+| 10. `uv build` → twine check → twine upload → CDN poll → un-draft → Latest | clean, ~2 min total |
+
+**Durable lessons added to v0.4 sprint runbook**:
+
+- **CI runs `ruff format --check` AND `ruff check` separately.** Pre-push local check must run both. Adding `uv run ruff format --check .` to the pre-release verify command is the simplest mitigation for the next release.
+- **`gh release create --draft` returns an `untagged-...` URL** even when the tag exists — this is GitHub's draft preview shape, not an indication that the tag was lost. The draft DOES attach to the existing tag (verifiable via `gh release view <tag> --json tagName,isDraft`).
+- **Forward-fix beats rollback when the release commit is already pushed.** `35c3c4c` was a 5-line whitespace-only commit that unblocked `ca4c969` without any version churn or destructive history rewrite. Same playbook for any post-release-commit format/lint discovery.
+
+**Standing [PUBLISH] queue**: empty. v0.3.0 is the latest published artifact across PyPI + GitHub + tag.
+
+**Standing [CRED]**: all live (no rotation needed).
+
+**Cowork hand-off**: distribution recheck conversation is live in cowork (per Allen's pre-commit at sprint start). Tech Lead is paused until Allen returns with channel/cadence decisions for v0.3.0 distribution. No new sprint until then.
