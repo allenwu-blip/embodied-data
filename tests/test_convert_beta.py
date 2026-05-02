@@ -113,3 +113,54 @@ def test_beta_validate_passes(tmp_path: Path):
     runner = CliRunner()
     result = runner.invoke(app, ["validate", str(tmp_path / "v3")])
     assert result.exit_code == 0, result.output
+
+
+def test_single_episode_resolves_task_name_via_ancestor_walk(tmp_path: Path):
+    """When src points at <root>/<task>/<ep_id>/, _resolve_beta_task_name
+    must walk up to <root> to find task_info_<task>.json (not just src and
+    src.parent — the v0.2.x patch backlog item).
+    """
+    import shutil
+
+    import h5py
+
+    from embodied_data.convert.agibot_beta_to_lerobot import (
+        _resolve_beta_task_name,
+        convert_agibot_beta_to_lerobot_v3,
+    )
+
+    # Build <root>/675/882736/proprio_stats.h5 + <root>/task_info_675.json with
+    # task_name "Insert the straw" — mirror the canonical Beta on-disk layout.
+    root = tmp_path / "agibot_beta_root"
+    ep_dir = root / "675" / "882736"
+    ep_dir.mkdir(parents=True)
+    task_info = root / "task_info_675.json"
+    task_info.write_text('[{"episode_id": 882736, "task_name": "Insert the straw"}]')
+    # Synthesize a tiny 30-frame proprio_stats.h5 so the convert path can run.
+    h5_path = ep_dir / "proprio_stats.h5"
+    with h5py.File(h5_path, "w") as f:
+        n = 30
+        f.create_dataset("state/joint/position", data=[[0.0] * 14] * n)
+        f.create_dataset("state/effector/position", data=[[0.0] * 2] * n)
+        f.create_dataset("state/head/position", data=[[0.0] * 2] * n)
+        f.create_dataset("state/waist/position", data=[[0.0] * 2] * n)
+        f.create_dataset("timestamp", data=list(range(n)))
+
+    # Direct unit check: the resolver finds the task_info two levels above.
+    assert _resolve_beta_task_name(ep_dir) == "Insert the straw"
+
+    # End-to-end: tasks.parquet of the converted dataset has the real name.
+    dst = tmp_path / "v3"
+    convert_agibot_beta_to_lerobot_v3(src=ep_dir, dst=dst)
+    import pyarrow.parquet as pq
+
+    tasks = pq.read_table(dst / "meta" / "tasks.parquet")
+    names = tasks.column("task").to_pylist()
+    assert names == ["Insert the straw"], names
+
+    # Fallback path: when no task_info file exists anywhere up the tree, the
+    # resolver returns "unknown" rather than crashing.
+    isolated = tmp_path / "isolated"
+    isolated.mkdir()
+    shutil.copy(h5_path, isolated / "proprio_stats.h5")
+    assert _resolve_beta_task_name(isolated) == "unknown"

@@ -204,8 +204,15 @@ def _first_diff(state: np.ndarray) -> np.ndarray:
 
 
 def _resolve_beta_task_name(src: Path) -> str:
-    """Beta task_info_<task>.json lives at the task root (parent of episode dir)."""
-    for candidate_dir in (src, src.parent):
+    """Resolve task name from a Beta-style ``task_info_<task>.json``.
+
+    For a single-episode src like ``<root>/<task>/<ep_id>/`` the canonical
+    file lives at ``<root>/task_info_<task>.json`` — i.e., ``src.parent.parent``.
+    Walk up to four levels of ancestors so callers can point ``src`` at any of
+    the canonical layouts (batch root, task root, or episode subdir).
+    """
+    ancestors = [src, src.parent, *list(src.parent.parents)[:3]]
+    for candidate_dir in ancestors:
         for hit in candidate_dir.glob("task_info_*.json"):
             try:
                 data = json.loads(hit.read_text())
