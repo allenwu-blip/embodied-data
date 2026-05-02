@@ -8,6 +8,8 @@ Bidirectional converter and validator for AgiBot World ↔ LeRobot v3 datasets.
 [![Python](https://img.shields.io/pypi/pyversions/embodied-data.svg)](https://pypi.org/project/embodied-data/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **Status**: maintenance mode (since 2026-05-02). See [MAINTENANCE.md](MAINTENANCE.md) for what this means for issues / PRs / future features.
+
 ## What it does
 
 - **Bidirectional conversion** between AgiBot World (DigitalWorld sim + Beta/Alpha real hardware) and LeRobot v3.
@@ -71,13 +73,25 @@ Concrete upstream issues this project addresses or works around:
 - [lerobot #2158](https://github.com/huggingface/lerobot/issues/2158) — v2 ↔ v3 episode-index incompatibility
 - [lerobot #2689](https://github.com/huggingface/lerobot/issues/2689) — fps/timestamp validation gap
 
-## Roadmap
+## Status
 
-- **v0.3.0 (released)** — `observation.images.head_color` video for Beta / Alpha (single + batch) so v3 datasets are usable for VLA training end-to-end.
-- **v0.3.x patches** — multi-camera (fisheye / hand / back), sparse `action/*/index` masks, end-pose flattening, reverse Beta path. Roadmap input welcome on [Discussions / Ideas](https://github.com/allenwu-blip/embodied-data/discussions/categories/ideas) (see also [`docs/v0.3.x-patches.md`](docs/v0.3.x-patches.md)).
-- **v0.4+** — ALOHA HDF5 ingest, RLDS export, OpenX Embodiment alignment.
+5 PyPI releases shipped — **v0.1.0** (sim DigitalWorld → LeRobot v3 + reverse + 5-check validate) → **v0.1.1** (sim/real-Beta filename compat) → **v0.2.0** (real Beta + Alpha forward conversion + schema-detect dispatcher) → **v0.3.0** (head_color video for Beta) → **v0.3.1** (CLI quality-of-life flags + Beta task-name fix + repo hygiene + pusht validate fix).
+
+The project is now in [maintenance mode](MAINTENANCE.md). Bug-fix patch releases (0.3.x) continue when reported; the items below are listed for community/contributor reference, not on the maintainer roadmap.
+
+## Future work (not actively planned)
+
+These items were previously on the v0.3.x / v0.4 roadmap. They are well-scoped and welcome as PRs (see [CONTRIBUTING.md](CONTRIBUTING.md)) but are not being actively implemented by the maintainer:
+
+- **Multi-camera support** (fisheye / hand_left/right / back_left/right) — Beta upstream packages 7 cameras per episode; v0.3.0 ships `head_color` only.
+- **Sparse `action/*/index` masks** — surface upstream "controller-active" masks as `auxiliary.<group>.mask` features.
+- **`state/end/*` end-pose flattening** — 32-dim Cartesian end-effector observation feature.
+- **Reverse `lerobot-v3 → agibot-beta`** — symmetric completion of the v0.3 forward path (reverse currently only supports sim DigitalWorld).
+- **ALOHA HDF5 ingest**, **RLDS export**, **OpenX Embodiment alignment** — broader format pair coverage.
 
 Cross-embodiment action-space retargeting and Chinese prompt embedding remain explicit non-goals.
+
+Roadmap input still welcome on [Discussions / Ideas](https://github.com/allenwu-blip/embodied-data/discussions/categories/ideas) — items with multiple users asking move from this list onto an actual milestone.
 
 ## Schema reference
 

@@ -689,3 +689,48 @@ Root cause: Sprint 6's `accf03b` (validate hard-fail) added a whole-video frame-
 1. **Wait for signal.** Default. The 72h reply window from the v0.3.0 / v0.3.1 burst on the 4 upstream issue threads is the highest-value source of direction.
 2. **v0.3.2 multi-camera** (fisheye / hand / back) — only if a real user names it. Speculative otherwise.
 3. **Validate-pattern sweep** — run `validate` against every dataset in `data/hf_v3_samples/` plus one or two more public LeRobot v3 datasets to catch any other shape assumptions before they ship. Low-glamour but the kind of thing that prevents another mid-release regression. ~1 hour of work.
+
+---
+
+## Maintenance mode entry — 2026-05-02
+
+embodied-data 从 active development 转 maintenance mode。
+
+### Cumulative state at handoff
+
+- Commits on main: **74**
+- PyPI releases: **5** (v0.1.0 / v0.1.1 / v0.2.0 / v0.3.0 / v0.3.1)
+- Tests: **130 passed + 1 skipped**
+- Sprints: **7** (Sprint 1 foundation → Sprint 7 hygiene + CLI QoL + v0.3.1 release)
+- Tags: **5** (matching the PyPI releases)
+- Upstream issue comments: **4** posted (AgiBot-World #18 / #124 / #149, lerobot #2158 — all with both v0.1.x intro and v0.3.0 update follow-ups)
+- HF datasets validated end-to-end: **4** (lerobot/pusht, AgiBotWorld-Beta, AgiBotWorld-Alpha, agibot-world/agibot_digital_world)
+- Schema reference docs: **4** (`docs/schema/{overview,digitalworld,beta}.md` + `docs/schema-lerobot-v3.md`)
+- OSS hygiene: **full kit** — `.github/{ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md, workflows/{ci.yml, nightly.yml}}`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md`, GitHub Discussions enabled with 4 sticky threads
+- Wheel size at GA: **61 KB** (v0.3.1 PyPI upload, +12 KB vs v0.3.0 from inspect summary + dry-run + verify code)
+
+### Strategic context
+
+Allen evaluating two new product directions (B.1 OSS VLA leaderboard, C.4 lab collaboration platform). embodied-data continues as a parallel maintained OSS that serves as portfolio + new-product schema backend. The same `convert` / `validate` / schema-detect machinery would underpin a leaderboard's "submitted dataset accepted as a valid v3" gate.
+
+### Re-activation triggers
+
+See `MAINTENANCE.md`. Summary:
+
+- A real production user reports a blocking bug
+- A security vulnerability or dependency CVE
+- The new product (leaderboard) reaches a maturity point where feature work on embodied-data unlocks a leaderboard feature
+- A strategic shift makes embodied-data the right primary focus again
+
+### Final stats (post-closeout commit)
+
+- `git log --oneline | wc -l` → 74 (will be 75 after this commit lands)
+- `uv run pytest -q` → 130 passed, 1 skipped
+- `gh pr list --state all` → 1 (PR #1, the v0.2 real-Beta forward conversion squash-merge)
+- `gh issue list --state all` → 0
+
+### What this WORKLOG becomes
+
+A historical log of how embodied-data was built (Sprints 1-7) and the durable lessons that came out of each release sprint. New entries land only when a re-activation trigger fires (see above) or a real PR / issue arrives that's worth narrating. No more proactive sprint planning entries.
+
+Tech Lead enters response-only mode. Allen reaches out → I respond. Allen doesn't reach out → I don't ping. The project's identity is now "stable maintained OSS tool", not "active feature development project."
