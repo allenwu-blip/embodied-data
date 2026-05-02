@@ -2,10 +2,11 @@
 
 Bidirectional converter and validator for AgiBot World ↔ LeRobot v3 datasets.
 
-[![PyPI](https://img.shields.io/pypi/v/embodied-data.svg)](https://pypi.org/project/embodied-data/)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://pypi.org/project/embodied-data/)
-[![CI](https://github.com/allenwu-blip/embodied-data/actions/workflows/ci.yml/badge.svg)](https://github.com/allenwu-blip/embodied-data/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/embodied-data.svg)](https://pypi.org/project/embodied-data/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/embodied-data.svg)](https://pypi.org/project/embodied-data/)
+[![CI](https://github.com/allenwu-blip/embodied-data/actions/workflows/ci.yml/badge.svg)](https://github.com/allenwu-blip/embodied-data/actions)
+[![Python](https://img.shields.io/pypi/pyversions/embodied-data.svg)](https://pypi.org/project/embodied-data/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## What it does
 
@@ -14,6 +15,8 @@ Bidirectional converter and validator for AgiBot World ↔ LeRobot v3 datasets.
 - **Five-check validator** — schema conformance, fps consistency, timestamp monotonicity, action-dim consistency, frame ↔ video alignment.
 - **Batch + resume** — `--max-episodes` for parallel conversion, `meta/uuid_map.parquet` for restartable jobs.
 - **Stdlib-first** — h5py + pyarrow + av; no PyTorch dependency in the data path.
+
+<img src="docs/screenshots/convert-output.svg" alt="embodied-data convert running on a Beta task root with one episode succeeding and one without upstream video logged to .beta_batch_errors.jsonl" />
 
 ## Quick start
 
@@ -68,8 +71,8 @@ Concrete upstream issues this project addresses or works around:
 
 ## Roadmap
 
-- **v0.3 (shipped on `main`, awaiting tag)** — `observation.images.head_color` video for Beta / Alpha (single + batch) so v3 datasets are usable for VLA training end-to-end.
-- **v0.3.x patches** — multi-camera (fisheye / hand / back), sparse `action/*/index` masks, end-pose flattening, reverse Beta path (see [`docs/v0.3.x-patches.md`](docs/v0.3.x-patches.md)).
+- **v0.3.0 (released)** — `observation.images.head_color` video for Beta / Alpha (single + batch) so v3 datasets are usable for VLA training end-to-end.
+- **v0.3.x patches** — multi-camera (fisheye / hand / back), sparse `action/*/index` masks, end-pose flattening, reverse Beta path. Roadmap input welcome on [Discussions / Ideas](https://github.com/allenwu-blip/embodied-data/discussions/categories/ideas) (see also [`docs/v0.3.x-patches.md`](docs/v0.3.x-patches.md)).
 - **v0.4+** — ALOHA HDF5 ingest, RLDS export, OpenX Embodiment alignment.
 
 Cross-embodiment action-space retargeting and Chinese prompt embedding remain explicit non-goals.
@@ -101,8 +104,8 @@ uv run pytest
 
 ## Coverage
 
-- 56 commits, 3 PyPI releases (0.1.0 / 0.1.1 / 0.2.0); v0.3 staged on `main`
-- 114 passing tests + 1 skipped (gated dataset)
+- 65+ commits, 4 PyPI releases (0.1.0 / 0.1.1 / 0.2.0 / 0.3.0)
+- 115 passing tests + 1 skipped (gated dataset)
 - 4 upstream issue threads engaged
 - 4 HuggingFace datasets exercised end-to-end (lerobot/pusht, AgiBotWorld-Beta, AgiBotWorld-Alpha, agibot-world/agibot_digital_world)
 
