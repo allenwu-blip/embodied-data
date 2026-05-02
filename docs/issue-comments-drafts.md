@@ -39,7 +39,7 @@ Repository: <https://github.com/allenwu-blip/embodied-data>
   > v0.1.0 just released — `pip install embodied-data` to try ([release notes](https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0)).
   >
   > Would like to run it against tasks 362, 543, 392, 532, 361, 570, 475, 595, 620 to confirm we either avoid the misalignment outright or surface it deterministically — let us know if a small slice can be shared.
-- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/149#issuecomment-4356517466>, comment_id 4356517466
+- **Status**: posted 2026-04-30 by allenwu-blip — comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/149#issuecomment-4356517466>, comment_id 4356517466; posted v0.3.0 update 2026-05-01 by allenwu-blip, comment URL <https://github.com/OpenDriveLab/AgiBot-World/issues/149#issuecomment-4362562562>, comment_id 4362562562
 
 ### #2158 — Local dataset → LeRobot v3 conversion errors (cache + invalid-timestamp)
 - **Target URL**: <https://github.com/huggingface/lerobot/issues/2158>
