@@ -17,10 +17,42 @@ v0.3+ adds `observation.images.head_color` video re-encoding when
 
 ## 1. Sample fixture
 
-`data/agibot_beta_sample/675/936938/proprio_stats.h5` (Beta task 675
-"Insert the straw", episode 936938, 1090 frames). Acquired by
-stream-extracting one h5 from `proprio_stats/<task>.tar` per Sprint 3
-B.alpha-hunter, ~1.2 MB streamed of an 800 MB tar.
+Two episodes ship under `data/agibot_beta_sample/675/`:
+
+- **`936938/proprio_stats.h5`** — proprio-only (Beta task 675 "Insert the
+  straw", 1090 frames). Acquired by stream-extracting one h5 from
+  `proprio_stats/<chunk>.tar` per Sprint 3 B.alpha-hunter, ~1.2 MB
+  streamed of an 800 MB tar. Used as the v0.2 legacy / no-video fixture.
+- **`882736/{proprio_stats.h5, videos/head_color.mp4}`** — proprio +
+  head_color video (879 frames @ 30 fps, 640×480, av1 upstream). The
+  video is stream-extracted from the 36 GB
+  `observations/675/880749-912853.tar` via HTTP Range requests against
+  HF (~8 MB downloaded). Used as the v0.3 video fixture.
+
+Reproducible acquisition is in `scripts/fetch_beta_video_fixture.py`:
+
+```bash
+huggingface-cli login                       # gated dataset access
+uv run python scripts/fetch_beta_video_fixture.py
+```
+
+Equivalent one-liner for the head_color video alone (HTTP Range against
+the upstream tar — no full-tar download needed):
+
+```python
+import urllib.request, pathlib
+from huggingface_hub import hf_hub_url, get_hf_file_metadata
+from huggingface_hub.utils import build_hf_headers
+
+url = hf_hub_url(
+    "agibot-world/AgiBotWorld-Beta",
+    "observations/675/880749-912853.tar",
+    repo_type="dataset",
+)
+meta = get_hf_file_metadata(url)
+# Walk tar headers (each 512 B) to find <ep>/videos/head_color.mp4
+# byte range, then Range-fetch just that slice (~8 MB, not 36 GB).
+```
 
 ## 2. Filename
 
