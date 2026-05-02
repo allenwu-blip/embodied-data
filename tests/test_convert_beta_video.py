@@ -195,9 +195,7 @@ def test_batch_mixed_with_and_without_video_logs_failure(tmp_path: Path):
     # No orphan parquet for the failed episode.
     data_files = sorted((dst / "data" / "chunk-000").glob("file-*.parquet"))
     ep_meta_files = sorted((dst / "meta" / "episodes" / "chunk-000").glob("file-*.parquet"))
-    video_files = sorted(
-        (dst / "videos" / HEAD_CAMERA_KEY / "chunk-000").glob("file-*.mp4")
-    )
+    video_files = sorted((dst / "videos" / HEAD_CAMERA_KEY / "chunk-000").glob("file-*.mp4"))
     assert len(data_files) == len(ep_meta_files) == len(video_files) == 1
 
 

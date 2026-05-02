@@ -49,7 +49,7 @@ DST_DIR = ROOT / TASK / EP_ID
 def _ensure_video() -> None:
     video_dst = DST_DIR / "videos" / "head_color.mp4"
     if video_dst.is_file() and video_dst.stat().st_size > 1_000_000:
-        print(f"OK: {video_dst} already exists ({video_dst.stat().st_size/1e6:.1f} MB)")
+        print(f"OK: {video_dst} already exists ({video_dst.stat().st_size / 1e6:.1f} MB)")
         return
 
     obs_tar = f"observations/{TASK}/880749-912853.tar"
@@ -89,7 +89,7 @@ def _ensure_video() -> None:
 
     video_dst.parent.mkdir(parents=True, exist_ok=True)
     video_dst.write_bytes(body)
-    print(f"wrote {video_dst} ({len(body)/1e6:.2f} MB)")
+    print(f"wrote {video_dst} ({len(body) / 1e6:.2f} MB)")
 
 
 def _ensure_proprio() -> None:
