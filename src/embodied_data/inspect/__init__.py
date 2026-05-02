@@ -287,7 +287,10 @@ def run_inspect(*, path: Path, summary: bool = False) -> None:
     if not path.exists() or not path.is_file():
         emit_error(
             f"not a file: {path}",
-            suggestion="inspect takes a single .h5 or .parquet file path (or use --summary for a dataset directory)",
+            suggestion=(
+                "inspect takes a single .h5 or .parquet file path "
+                "(or use --summary for a dataset directory)"
+            ),
             exit_code=2,
         )
 

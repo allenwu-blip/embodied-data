@@ -5,6 +5,28 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `convert --dry-run` — print a conversion plan (format pair, detected variant, single vs batch mode, episode count, estimated total frames, estimated output size in MB) without writing any files. Hard-fails with exit 2 if the destination would have been overwritten by a real run, so dry-run can't be used to silently preview a destructive overwrite. Reverse pair (`lerobot-v3 → agibot`) is not supported in dry-run yet — exits 2 with a scoped error.
+- `convert --verify` — automatically run `validate` on the destination after a successful convert and propagate the result to the convert exit code. Skipped when `--dry-run` is also passed (nothing to validate) and when the format pair is reverse (no output-side validator yet).
+- `inspect <dataset_dir> --summary` — high-level overview of a LeRobot v3 dataset: robot type, fps, episode / frame / duration totals, state and action dims, per-camera resolution + codec, disk size, and a mini run of all five `validate` checks with PASS/FAIL/SKIP status. Exits non-zero on overall FAIL. `--json --summary` emits the full summary as a JSON dict for programmatic consumption.
+
+### Changed
+
+- `_resolve_beta_task_name` now walks up to four ancestors (was only `src` and `src.parent`). Single-episode CLI invocations like `embodied-data convert <root>/<task>/<ep_id>/ ...` now find the canonical `<root>/task_info_<task>.json` and produce a `meta/tasks.parquet` with the real task name instead of `"unknown"`. Resolves the v0.2.x patch backlog item.
+
+### Repo hygiene (no user-visible behavior change)
+
+- GitHub Discussions enabled with 4 sticky welcome threads (Announcements / Q&A / Show and tell / Ideas).
+- Issue templates (`bug_report.yml`, `feature_request.yml`, `question.yml`) and a PR template added under `.github/`.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), and `SECURITY.md` added at repo root.
+- Nightly CI workflow (`nightly.yml`) — cron 04:00 UTC across Python 3.11 / 3.12 / 3.13 with auto-issue creation on cron-triggered failure.
+- README badges expanded to 5 (PyPI version + monthly downloads + CI + Python pyversions + License) and a new `convert-output.svg` screenshot embedded under "What it does".
+
+[Unreleased]: https://github.com/allenwu-blip/embodied-data/compare/v0.3.0...HEAD
+
 ## [0.3.0] — 2026-05-01
 
 Minor release. Closes the largest user-facing gap from v0.2.0's Known

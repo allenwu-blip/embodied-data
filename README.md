@@ -32,6 +32,8 @@ embodied-data validate ./pusht
 
 `preview` prints a per-episode stats table; `validate` runs all five checks and exits non-zero on failure.
 
+> 💡 **New on `main` (unreleased):** `convert --dry-run` to preview a conversion plan without writing files, `convert --verify` to auto-validate the output, and `inspect <dataset_dir> --summary` for a high-level dataset overview.
+
 ## Real AgiBot data (HuggingFace gated)
 
 AgiBot World Beta and Alpha live on HuggingFace under a gated license. Request access on the [AgiBotWorld-Beta](https://huggingface.co/datasets/agibot-world/AgiBotWorld-Beta) page first, then:

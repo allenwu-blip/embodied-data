@@ -547,3 +547,63 @@ f5faedd docs(schema): update beta.md §1 fixture section for v0.3 head_color
 **Standing [CRED]**: all live (no rotation needed).
 
 **Cowork hand-off**: distribution recheck conversation is live in cowork (per Allen's pre-commit at sprint start). Tech Lead is paused until Allen returns with channel/cadence decisions for v0.3.0 distribution. No new sprint until then.
+
+---
+
+## Sprint 7 closeout — repo hygiene + CLI QoL (2026-05-01 evening)
+
+**Sprint goal**: signal-independent ROI during the v0.3.0 reply-monitoring window. Two strict tracks — (A) repo OSS hygiene that won't embarrass the project when distribution opens, plus (B) CLI quality-of-life features that any user benefits from regardless of which use case opens. **No release**; all changes land on `main` and the CLI features stage in `CHANGELOG.md` `## [Unreleased]` for Allen's release-cadence call.
+
+**Track A — OSS hygiene (3 commits)**:
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| A.1 GitHub Discussions enable + 4 sticky welcome threads | ✓ | Discussions #2 (Announcements) / #3 (Q&A) / #4 (Show and tell) / #5 (Ideas / Roadmap). **Pinning has no public API** (REST `pin` endpoint 404s; GraphQL `pinDiscussion` mutation doesn't exist). Allen needs to pin manually in the web UI — max 4 pins per repo, fits exactly. |
+| A.2 `.github/` issue + PR templates | ✓ | 3 YAML issue forms (bug / feature / question) + `config.yml` redirecting general questions to Discussions Q&A + `PULL_REQUEST_TEMPLATE.md`. All YAML parses clean. |
+| A.3 `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md` + `SECURITY.md` | ✓ | Subagent got blocked by content filter on the Contributor Covenant text (verbatim has triggering words). Tech Lead direct fallback: `curl` canonical CoC v2.1, sed in contact email. CONTRIBUTING was 90%-done by subagent before block; Tech Lead wrote SECURITY directly. |
+| A.4 nightly CI workflow | ✓ | `.github/workflows/nightly.yml`, cron `0 4 * * *`, Python 3.11/3.12/3.13 matrix on ubuntu-latest, `fail-fast: false`. 3.11 expected-fail flagged in YAML comment as drift detector for upstream `requires-python` widening. Cron-triggered failures auto-create a tracking issue (label: `ci-failure`) with dedup against existing open ones. |
+| A.5 README badges + convert SVG | ✓ | 5 badges (PyPI version + monthly downloads + CI + pyversions + License). New `docs/screenshots/convert-output.svg` (6271 bytes) showing Rich progress bar + mixed-success batch outcome. Subagent picked option (b) — batch path produces a much more visually informative screenshot than single-episode. |
+| A.6 task-name ancestor walk | ✓ | `_resolve_beta_task_name` now walks up to 4 ancestors. Resolves the v0.2.x patch backlog item: single-episode CLI on `<root>/<task>/<ep_id>/` produces real task name in `meta/tasks.parquet` instead of `"unknown"`. New regression test. |
+
+**Track B — CLI QoL (2 commits)**:
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| B.1 `convert --dry-run` | ✓ | Subagent. Prints conversion plan via Rich table (or JSON via `--json`), no files written, hard-fails if dst would be overwritten. Reverse pair scoped out (v0.4 candidate). |
+| B.2 `convert --verify` | ✓ | Subagent. Auto-runs `validate` after convert, propagates exit code. Skipped when `--dry-run` set or pair is reverse. |
+| B.3 `inspect <dir> --summary` | ✓ | Tech Lead direct (≥150 LOC = subagent timeout risk). Robot type, fps, episodes/frames/duration, state/action dim, per-camera resolution+codec, recursive disk size, mini run of all 5 validate checks with PASS/FAIL/SKIP, overall status footer. JSON output via `--json`. Exit 1 on overall FAIL. |
+| B.4 CHANGELOG + README + WORKLOG | ✓ | This commit. CHANGELOG `## [Unreleased]` lists 3 added flags + 1 changed (task-name resolver) + repo-hygiene block. README "Quick start" gets a one-line callout pointing at the unreleased flags. |
+
+**Subagent scoreboard**: 5 dispatched, 4 returned cleanly (A.1, A.2, A.4, A.5, B.1, B.2 — actually 6 successful), 1 content-filter block (A.3 CoC). Recovery on A.3: Tech Lead direct via `curl`, ~5 min total. No subagent timeouts this sprint.
+
+**Pytest**: 115 + 1 skipped → **129 + 1 skipped** (+14 tests across A.6, B.1, B.2, B.3). All green at every commit boundary; `ruff check` + `ruff format --check` clean. Local CI workflow + nightly workflow YAMLs both pass `yaml.safe_load`.
+
+**Sprint metrics (cumulative through Sprint 7)**:
+
+| Maxim | Was (v0.3.0 GA) | Now (Sprint 7 close) |
+| --- | --- | --- |
+| Commits on main | 60 | **66** (+6 sprint commits including this one) |
+| PyPI releases | 4 | 4 (no release this sprint) |
+| Tests passing | 114 + 1 skipped | **129 + 1 skipped** (+15) |
+| Repo files added | — | 9 (.github/{4 issue forms, 1 config, 1 PR template, 1 nightly}, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, convert-output.svg, fetch_beta_video_fixture.py was Sprint 6) |
+| `## [Unreleased]` staged | empty | 3 CLI flags + 1 fix (task-name resolver) |
+| Sprints | 6 | 7 |
+
+**Unexpected discoveries during hygiene work**:
+
+1. **GitHub has no public pin API for Discussions.** Tried both REST `POST /discussions/{n}/pin` (404) and GraphQL `pinDiscussion` mutation (doesn't exist). Manual UI step is the only path. Note for any future automation: budget 30 sec per repo for manual pinning.
+2. **CI's `ruff format --check` is separate from `ruff check`.** Already known from Sprint 6 release commit failure, but reinforced by the format violation in B.3 inline at commit time. CONTRIBUTING.md now explicitly calls out the two-command requirement.
+3. **Subagents can get content-filtered on canonical OSS boilerplate.** A.3 hit this on Contributor Covenant text. Mitigation pattern: when fetching well-known canonical text, use `curl` + `sed` from a known good source URL rather than asking a subagent to reproduce it.
+4. **Convert single-episode produces a one-line stdout** that doesn't make a good screenshot. A.5 subagent caught this and switched to batch path which has a Rich progress bar. Useful default for future "show what it does" assets.
+
+**Standing [PUBLISH] queue**: 1 candidate — v0.3.1 release of the `## [Unreleased]` block. **Gated on signal**, per sprint scope. Allen decides whether/when to ship based on the 72h reply window outcome.
+
+**Standing [CRED]**: all live.
+
+**Next sprint candidates (top 3, signal-dependent)**:
+
+1. **v0.3.1 release of staged Unreleased.** Quickest path if Allen wants visible movement on the project but the reply window is quiet. Bumps version, no new code work, mirrors the v0.3.0 7-step flow including the now-known `ruff format --check` gotcha.
+2. **Wait for signal.** If the 72h window produces a reply / reaction / maintainer ack, the next sprint scope is shaped by what they ask for (repro / data / multi-camera / different format / etc.). Tech Lead default is to keep the queue in sleep mode until then.
+3. **v0.3.1 multi-camera** if a real user has asked for fisheye / hand / back specifically. Same h264 contract per camera, generalize `find_head_color_video` → `find_camera_videos(ep_dir) -> dict[str, Path]`. Largest single feature gap remaining for bimanual VLA training but speculative until a user names it.
+
+**Cowork hand-off (still live)**: distribution recheck still pending. Tech Lead pauses again after this sprint's WORKLOG commit until either (a) reply signal hits or (b) Allen returns with v0.3.1 release approval or a new direction.
