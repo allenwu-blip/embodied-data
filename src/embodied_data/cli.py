@@ -133,6 +133,20 @@ def convert(
         int,
         typer.Option("--workers", help="Parallel episode load workers (default 1)."),
     ] = 1,
+    verify: Annotated[
+        bool,
+        typer.Option(
+            "--verify",
+            help="Run validate on dst after a successful convert; propagate its exit code.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Print what would be converted without writing any files.",
+        ),
+    ] = False,
 ) -> None:
     """Convert a dataset from one format to another."""
     from embodied_data.convert import run_convert
@@ -145,6 +159,8 @@ def convert(
         max_episodes=max_episodes,
         resume=resume,
         workers=workers,
+        verify=verify,
+        dry_run=dry_run,
     )
 
 
@@ -172,12 +188,24 @@ def preview(
 
 @app.command(name="inspect")
 def inspect_cmd(
-    path: Annotated[Path, typer.Argument(help="Single .h5 / .hdf5 or .parquet file.")],
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help="Single .h5 / .hdf5 or .parquet file (or v3 dataset dir with --summary)."
+        ),
+    ],
+    summary: Annotated[
+        bool,
+        typer.Option(
+            "--summary",
+            help="Print high-level overview of a LeRobot v3 dataset directory.",
+        ),
+    ] = False,
 ) -> None:
-    """Dump schema of a single HDF5 or parquet file."""
+    """Dump schema of a single file, or summarize a v3 dataset (--summary)."""
     from embodied_data.inspect import run_inspect
 
-    run_inspect(path=path)
+    run_inspect(path=path, summary=summary)
 
 
 @app.command()
