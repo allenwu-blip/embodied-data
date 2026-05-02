@@ -1,6 +1,6 @@
 [project]
 name = "embodied-data"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bidirectional converter and validator for AgiBot World ↔ LeRobot v3 datasets."
 readme = "README.md"
 authors = [

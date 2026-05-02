@@ -5,7 +5,13 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] — 2026-05-01
+
+Minor release. Closes the largest user-facing gap from v0.2.0's Known
+Limitations: Beta / Alpha LeRobot v3 datasets emitted by `embodied-data
+convert` now contain re-encoded `observation.images.head_color` video
+alongside proprio. **v0.3.0 datasets are usable for VLA fine-tuning
+end-to-end** — videos are no longer `null`.
 
 ### Added
 
@@ -51,8 +57,6 @@ and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v
   candidate.
 - **`state/end/*` end-pose flattening** (32-dim) — v0.3.3 candidate.
 - **Reverse `lerobot-v3 → agibot-beta`** still not implemented.
-
-[Unreleased]: https://github.com/allenwu-blip/embodied-data/compare/v0.2.0...HEAD
 
 ## [0.2.0] — 2026-04-30
 
@@ -220,6 +224,7 @@ In-scope upstream issues addressed by v0.1.0:
 Built on top of the schemas published by the HuggingFace LeRobot team and the
 OpenDriveLab AgiBot team.
 
+[0.3.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.3.0
 [0.2.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.2.0
 [0.1.1]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.1
 [0.1.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.0
