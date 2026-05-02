@@ -5,7 +5,12 @@ All notable changes to **embodied-data** are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.1] — 2026-05-01
+
+Quality-of-life patch release. Three new CLI flags, one Beta task-name
+resolution fix, and OSS-grade repo hygiene (issue templates, nightly CI,
+Discussions, CONTRIBUTING / CoC / SECURITY). **Datasets produced by v0.3.0
+work unchanged in v0.3.1** — this release is purely additive.
 
 ### Added
 
@@ -24,8 +29,6 @@ and the project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), and `SECURITY.md` added at repo root.
 - Nightly CI workflow (`nightly.yml`) — cron 04:00 UTC across Python 3.11 / 3.12 / 3.13 with auto-issue creation on cron-triggered failure.
 - README badges expanded to 5 (PyPI version + monthly downloads + CI + Python pyversions + License) and a new `convert-output.svg` screenshot embedded under "What it does".
-
-[Unreleased]: https://github.com/allenwu-blip/embodied-data/compare/v0.3.0...HEAD
 
 ## [0.3.0] — 2026-05-01
 
@@ -246,6 +249,7 @@ In-scope upstream issues addressed by v0.1.0:
 Built on top of the schemas published by the HuggingFace LeRobot team and the
 OpenDriveLab AgiBot team.
 
+[0.3.1]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.3.1
 [0.3.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.3.0
 [0.2.0]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.2.0
 [0.1.1]: https://github.com/allenwu-blip/embodied-data/releases/tag/v0.1.1
