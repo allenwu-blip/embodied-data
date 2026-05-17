@@ -118,6 +118,32 @@ uv sync
 uv run pytest
 ```
 
+## Hosted version (optional)
+
+`embodied-data` is and stays free and open source. The CLI is all you need:
+
+```bash
+pip install embodied-data
+embodied-data convert ./agibot_root /tmp/out --from agibot --to lerobot-v3
+embodied-data validate /tmp/out
+```
+
+If you'd rather not run and maintain the pipeline yourself — browser
+upload→convert→download, per-team storage, auth, and output validated
+against the LeRobot v3 spec before you train on it — there's a hosted
+build: **[agibridge](https://agibridge-saas.vercel.app)**.
+
+It wraps this exact library (same conversion core, same version) behind:
+
+- a web UI (drop a tarball, get the converted dataset back — no local setup),
+- accounts + per-organization isolation,
+- persistent object storage for inputs/outputs,
+- spec-validated output (you don't discover a malformed dataset 3 hours into training).
+
+Free tier for trying it; paid tiers for teams who need the storage/seats.
+The library itself has no paywall and never will — the hosted layer is
+purely the "don't want to own the ops" option.
+
 ## Coverage
 
 - 65+ commits, 4 PyPI releases (0.1.0 / 0.1.1 / 0.2.0 / 0.3.0)
